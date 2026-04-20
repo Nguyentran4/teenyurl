@@ -35,15 +35,15 @@ teenyurl/
 ```
 
 ## Milestones
-- [ ] Set up Spring Boot backend
-- [ ] Create URL shortening API
-- [ ] Create redirect endpoint
+- [x] Set up Spring Boot backend
+- [x] Create URL shortening API
+- [x] Create redirect endpoint
 - [ ] Save URLs in PostgreSQL
 - [ ] Add Redis caching
 - [ ] Add expiration support
-- [ ] Add click analytics
+- [x] Add click analytics
 - [ ] Add Docker Compose
-- [ ] Add tests
+- [x] Add tests
 - [ ] Document architecture
 
 ## Core Features
@@ -61,8 +61,12 @@ teenyurl/
 - `GET /api/urls/{shortCode}/stats`
 
 ## Local Development
-Planned local stack:
+Current MVP:
 - Spring Boot app
+- In-memory URL storage
+- In-memory click counts
+
+Planned local stack:
 - PostgreSQL
 - Redis
 - Docker Compose
