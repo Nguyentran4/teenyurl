@@ -8,7 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.demo.SupportTestConfiguration;
+import com.example.demo.SupportTestConfiguration.InMemoryRedirectCacheService;
+import com.example.demo.SupportTestConfiguration.MutableClock;
+import com.example.demo.repository.UrlMappingRepository;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -28,6 +33,22 @@ class UrlControllerIntegrationTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private UrlMappingRepository repository;
+
+    @Autowired
+    private InMemoryRedirectCacheService redirectCacheService;
+
+    @Autowired
+    private MutableClock clock;
+
+    @BeforeEach
+    void setUp() {
+        repository.deleteAll();
+        redirectCacheService.clear();
+        clock.setInstant(Instant.parse("2026-04-19T12:00:00Z"));
+    }
 
     @Test
     void createsRedirectsAndReturnsStats() throws Exception {
@@ -76,5 +97,60 @@ class UrlControllerIntegrationTest {
         mockMvc.perform(get("/missing-code"))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.message").value("Short URL not found: missing-code"));
+    }
+
+    @Test
+    void createsUrlWithExpirationAndReturnsItInStats() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "https://example.com/with-expiration",
+                      "expiresAt": "2026-04-19T12:05:00"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.shortCode").isNotEmpty())
+            .andExpect(jsonPath("$.originalUrl").value("https://example.com/with-expiration"))
+            .andExpect(jsonPath("$.expiresAt").value("2026-04-19T12:05:00"))
+            .andReturn();
+
+        JsonNode response = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        String shortCode = response.get("shortCode").asText();
+
+        mockMvc.perform(get("/api/urls/" + shortCode + "/stats"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shortCode").value(shortCode))
+            .andExpect(jsonPath("$.originalUrl").value("https://example.com/with-expiration"))
+            .andExpect(jsonPath("$.expiresAt").value("2026-04-19T12:05:00"));
+    }
+
+    @Test
+    void expiredUrlDoesNotRedirectAndReturnsCleanError() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "https://example.com/expires-soon",
+                      "expiresAt": "2026-04-19T12:01:00"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+        JsonNode response = objectMapper.readTree(createResult.getResponse().getContentAsString());
+        String shortCode = response.get("shortCode").asText();
+
+        clock.setInstant(Instant.parse("2026-04-19T12:02:00Z"));
+
+        mockMvc.perform(get("/" + shortCode))
+            .andExpect(status().isGone())
+            .andExpect(jsonPath("$.message").value("Short URL has expired: " + shortCode))
+            .andExpect(jsonPath("$.timestamp").isNotEmpty());
+
+        mockMvc.perform(get("/api/urls/" + shortCode + "/stats"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.shortCode").value(shortCode))
+            .andExpect(jsonPath("$.expiresAt").value("2026-04-19T12:01:00"));
     }
 }

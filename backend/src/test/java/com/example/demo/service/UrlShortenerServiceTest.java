@@ -104,4 +104,18 @@ class UrlShortenerServiceTest {
         assertThatThrownBy(() -> service.resolveOriginalUrl(created.shortCode()))
             .isInstanceOf(UrlExpiredException.class);
     }
+
+    @Test
+    void returnsStatsForExpiredUrl() {
+        CreateUrlResponse created = service.createShortUrl(
+            new CreateUrlRequest("https://example.com/expired-stats", LocalDateTime.of(2026, 4, 19, 12, 1))
+        );
+
+        clock.setInstant(Instant.parse("2026-04-19T12:02:00Z"));
+
+        UrlStatsResponse stats = service.getStats(created.shortCode());
+
+        assertThat(stats.originalUrl()).isEqualTo("https://example.com/expired-stats");
+        assertThat(stats.expiresAt()).isEqualTo(LocalDateTime.of(2026, 4, 19, 12, 1));
+    }
 }

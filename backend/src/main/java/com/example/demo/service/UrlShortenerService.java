@@ -88,7 +88,7 @@ public class UrlShortenerService {
 
     @Transactional(readOnly = true)
     public UrlStatsResponse getStats(String shortCode) {
-        UrlMapping mapping = findActiveMapping(shortCode);
+        UrlMapping mapping = findExistingMapping(shortCode);
         return new UrlStatsResponse(
             mapping.getShortCode(),
             mapping.getOriginalUrl(),
@@ -102,13 +102,18 @@ public class UrlShortenerService {
         return findActiveMapping(shortCode, LocalDateTime.now(clock));
     }
 
-    private UrlMapping findActiveMapping(String shortCode, LocalDateTime now) {
+    private UrlMapping findExistingMapping(String shortCode) {
         UrlMapping mapping = urlMappingRepository
             .findByShortCode(shortCode)
             .orElseThrow(() -> new UrlNotFoundException(shortCode));
         if (!mapping.isActive()) {
             throw new UrlNotFoundException(shortCode);
         }
+        return mapping;
+    }
+
+    private UrlMapping findActiveMapping(String shortCode, LocalDateTime now) {
+        UrlMapping mapping = findExistingMapping(shortCode);
         if (mapping.isExpired(now)) {
             throw new UrlExpiredException(shortCode);
         }
