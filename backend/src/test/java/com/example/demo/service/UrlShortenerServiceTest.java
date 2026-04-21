@@ -8,22 +8,39 @@ import com.example.demo.dto.CreateUrlResponse;
 import com.example.demo.dto.UrlStatsResponse;
 import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
+import com.example.demo.repository.UrlMappingRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 
+@SpringBootTest
 class UrlShortenerServiceTest {
-    private static final Clock FIXED_CLOCK = Clock.fixed(
-        Instant.parse("2026-04-19T12:00:00Z"),
-        ZoneId.of("UTC")
-    );
+    @Autowired
+    private UrlShortenerService service;
+
+    @Autowired
+    private UrlMappingRepository repository;
+
+    @Autowired
+    private MutableClock clock;
+
+    @BeforeEach
+    void setUp() {
+        repository.deleteAll();
+        clock.setInstant(Instant.parse("2026-04-19T12:00:00Z"));
+    }
 
     @Test
     void createsShortUrlAndTracksClicks() {
-        UrlShortenerService service = new UrlShortenerService(FIXED_CLOCK);
         CreateUrlRequest request = new CreateUrlRequest("https://example.com/articles/123", null);
 
         CreateUrlResponse created = service.createShortUrl(request);
@@ -38,7 +55,6 @@ class UrlShortenerServiceTest {
 
     @Test
     void rejectsInvalidUrl() {
-        UrlShortenerService service = new UrlShortenerService(FIXED_CLOCK);
         CreateUrlRequest request = new CreateUrlRequest("not-a-url", null);
 
         assertThatThrownBy(() -> service.createShortUrl(request))
@@ -48,7 +64,6 @@ class UrlShortenerServiceTest {
 
     @Test
     void rejectsPastExpiration() {
-        UrlShortenerService service = new UrlShortenerService(FIXED_CLOCK);
         LocalDateTime expiresAt = LocalDateTime.of(2026, 4, 19, 11, 59);
         CreateUrlRequest request = new CreateUrlRequest("https://example.com", expiresAt);
 
@@ -59,8 +74,6 @@ class UrlShortenerServiceTest {
 
     @Test
     void blocksExpiredUrlOnRead() {
-        MutableClock clock = new MutableClock(Instant.parse("2026-04-19T12:00:00Z"));
-        UrlShortenerService service = new UrlShortenerService(clock);
         CreateUrlResponse created = service.createShortUrl(
             new CreateUrlRequest("https://example.com", LocalDateTime.of(2026, 4, 19, 12, 1))
         );
@@ -71,7 +84,16 @@ class UrlShortenerServiceTest {
             .isInstanceOf(UrlExpiredException.class);
     }
 
-    private static class MutableClock extends Clock {
+    @TestConfiguration
+    static class ClockTestConfiguration {
+        @Bean
+        @Primary
+        MutableClock mutableClock() {
+            return new MutableClock(Instant.parse("2026-04-19T12:00:00Z"));
+        }
+    }
+
+    static class MutableClock extends Clock {
         private Instant instant;
 
         MutableClock(Instant instant) {

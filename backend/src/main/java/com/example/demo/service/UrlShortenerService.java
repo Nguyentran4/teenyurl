@@ -7,42 +7,40 @@ import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
 import com.example.demo.exception.UrlNotFoundException;
 import com.example.demo.model.UrlMapping;
+import com.example.demo.repository.UrlMappingRepository;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Locale;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Service
 public class UrlShortenerService {
     private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-    private final AtomicLong idSequence = new AtomicLong(100_000);
-    private final ConcurrentMap<String, UrlMapping> urlsByShortCode = new ConcurrentHashMap<>();
+    private final UrlMappingRepository urlMappingRepository;
     private final Clock clock;
 
-    public UrlShortenerService() {
-        this(Clock.systemDefaultZone());
-    }
-
-    UrlShortenerService(Clock clock) {
+    public UrlShortenerService(UrlMappingRepository urlMappingRepository, Clock clock) {
+        this.urlMappingRepository = urlMappingRepository;
         this.clock = clock;
     }
 
+    @Transactional
     public CreateUrlResponse createShortUrl(CreateUrlRequest request) {
         String originalUrl = validateOriginalUrl(request);
         LocalDateTime now = LocalDateTime.now(clock);
         validateExpiration(request.expiresAt(), now);
 
-        long id = idSequence.incrementAndGet();
-        String shortCode = encodeBase62(id);
-        UrlMapping mapping = new UrlMapping(id, shortCode, originalUrl, now, request.expiresAt());
-        urlsByShortCode.put(shortCode, mapping);
+        UrlMapping mapping = new UrlMapping(originalUrl, now, request.expiresAt());
+        mapping = urlMappingRepository.saveAndFlush(mapping);
+
+        String shortCode = encodeBase62(mapping.getId());
+        mapping.setShortCode(shortCode);
+        mapping = urlMappingRepository.save(mapping);
 
         return new CreateUrlResponse(
             shortCode,
@@ -53,12 +51,14 @@ public class UrlShortenerService {
         );
     }
 
+    @Transactional
     public String resolveOriginalUrl(String shortCode) {
         UrlMapping mapping = findActiveMapping(shortCode);
         mapping.incrementClickCount();
         return mapping.getOriginalUrl();
     }
 
+    @Transactional(readOnly = true)
     public UrlStatsResponse getStats(String shortCode) {
         UrlMapping mapping = findActiveMapping(shortCode);
         return new UrlStatsResponse(
@@ -71,8 +71,10 @@ public class UrlShortenerService {
     }
 
     private UrlMapping findActiveMapping(String shortCode) {
-        UrlMapping mapping = urlsByShortCode.get(shortCode);
-        if (mapping == null) {
+        UrlMapping mapping = urlMappingRepository
+            .findByShortCode(shortCode)
+            .orElseThrow(() -> new UrlNotFoundException(shortCode));
+        if (!mapping.isActive()) {
             throw new UrlNotFoundException(shortCode);
         }
         if (mapping.isExpired(LocalDateTime.now(clock))) {
@@ -123,7 +125,7 @@ public class UrlShortenerService {
         }
     }
 
-    private String encodeBase62(long value) {
+    private String encodeBase62(Long value) {
         StringBuilder encoded = new StringBuilder();
         long remaining = value;
         while (remaining > 0) {

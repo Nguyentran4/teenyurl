@@ -6,12 +6,11 @@ TeenyURL is a distributed URL shortener designed to convert long URLs into short
 ## High-Level Flow
 1. Client sends a long URL to the backend
 2. Backend generates a unique short code
-3. For the first MVP, URL mapping is stored in an in-memory map
-4. Redirect requests check the in-memory map
+3. URL mapping is saved in PostgreSQL
+4. Redirect requests look up the mapping in PostgreSQL
 5. Analytics are updated on redirect
 
-Future persistence flow:
-- URL mapping is saved in PostgreSQL
+Future cache flow:
 - Frequently accessed mappings are cached in Redis
 - Redirect requests check Redis first, then PostgreSQL
 
@@ -32,9 +31,7 @@ Future persistence flow:
 - exception: error handling
 
 ## Database
-The current MVP does not use PostgreSQL yet.
-
-Main table idea:
+Main table:
 - id
 - original_url
 - short_code

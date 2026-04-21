@@ -1,37 +1,65 @@
 package com.example.demo.model;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import java.util.concurrent.atomic.AtomicLong;
 
+@Entity
+@Table(name = "url_mappings")
 public class UrlMapping {
-    private final long id;
-    private final String shortCode;
-    private final String originalUrl;
-    private final LocalDateTime createdAt;
-    private final LocalDateTime expiresAt;
-    private final AtomicLong clickCount;
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "url_mapping_id_generator")
+    @SequenceGenerator(name = "url_mapping_id_generator", sequenceName = "url_mapping_id_seq", allocationSize = 1)
+    private Long id;
+
+    @Column(name = "short_code", unique = true, length = 16)
+    private String shortCode;
+
+    @Column(name = "original_url", nullable = false, length = 2048)
+    private String originalUrl;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "click_count", nullable = false)
+    private long clickCount;
+
+    @Column(name = "active", nullable = false)
+    private boolean active;
+
+    protected UrlMapping() {
+    }
 
     public UrlMapping(
-        long id,
-        String shortCode,
         String originalUrl,
         LocalDateTime createdAt,
         LocalDateTime expiresAt
     ) {
-        this.id = id;
-        this.shortCode = shortCode;
         this.originalUrl = originalUrl;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
-        this.clickCount = new AtomicLong();
+        this.clickCount = 0;
+        this.active = true;
     }
 
-    public long getId() {
+    public Long getId() {
         return id;
     }
 
     public String getShortCode() {
         return shortCode;
+    }
+
+    public void setShortCode(String shortCode) {
+        this.shortCode = shortCode;
     }
 
     public String getOriginalUrl() {
@@ -47,11 +75,15 @@ public class UrlMapping {
     }
 
     public long getClickCount() {
-        return clickCount.get();
+        return clickCount;
     }
 
-    public long incrementClickCount() {
-        return clickCount.incrementAndGet();
+    public void incrementClickCount() {
+        clickCount++;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     public boolean isExpired(LocalDateTime now) {
