@@ -80,6 +80,26 @@ class UrlControllerIntegrationTest {
     }
 
     @Test
+    void createsUrlWithCustomAlias() throws Exception {
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "https://example.com/custom-alias",
+                      "alias": "launch_2026"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.shortCode").value("launch_2026"))
+            .andExpect(jsonPath("$.shortUrl", startsWith("http://localhost/launch_2026")))
+            .andExpect(jsonPath("$.originalUrl").value("https://example.com/custom-alias"));
+
+        mockMvc.perform(get("/launch_2026"))
+            .andExpect(status().isFound())
+            .andExpect(header().string("Location", "https://example.com/custom-alias"));
+    }
+
+    @Test
     void rejectsInvalidCreateRequest() throws Exception {
         mockMvc.perform(post("/api/urls")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -90,6 +110,44 @@ class UrlControllerIntegrationTest {
                     """))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value("originalUrl must use HTTP or HTTPS"));
+    }
+
+    @Test
+    void rejectsInvalidAlias() throws Exception {
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "https://example.com",
+                      "alias": "bad alias!"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("alias must be 3-64 characters and contain only letters, numbers, hyphens, or underscores"));
+    }
+
+    @Test
+    void rejectsDuplicateAlias() throws Exception {
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "https://example.com/first",
+                      "alias": "taken"
+                    }
+                    """))
+            .andExpect(status().isCreated());
+
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "https://example.com/second",
+                      "alias": "taken"
+                    }
+                    """))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value("Alias is already taken: taken"));
     }
 
     @Test

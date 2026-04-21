@@ -9,6 +9,7 @@ import com.example.demo.SupportTestConfiguration.MutableClock;
 import com.example.demo.dto.CreateUrlRequest;
 import com.example.demo.dto.CreateUrlResponse;
 import com.example.demo.dto.UrlStatsResponse;
+import com.example.demo.exception.AliasAlreadyExistsException;
 import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
 import com.example.demo.repository.UrlMappingRepository;
@@ -44,7 +45,7 @@ class UrlShortenerServiceTest {
 
     @Test
     void createsShortUrlAndTracksClicks() {
-        CreateUrlRequest request = new CreateUrlRequest("https://example.com/articles/123", null);
+        CreateUrlRequest request = new CreateUrlRequest("https://example.com/articles/123", null, null);
 
         CreateUrlResponse created = service.createShortUrl(request);
         String resolved = service.resolveOriginalUrl(created.shortCode());
@@ -59,7 +60,7 @@ class UrlShortenerServiceTest {
     @Test
     void cachesRedirectLookupAndKeepsClickCountPersisted() {
         CreateUrlResponse created = service.createShortUrl(
-            new CreateUrlRequest("https://example.com/cache-me", null)
+            new CreateUrlRequest("https://example.com/cache-me", null, null)
         );
 
         assertThat(redirectCacheService.contains(created.shortCode())).isFalse();
@@ -76,7 +77,7 @@ class UrlShortenerServiceTest {
 
     @Test
     void rejectsInvalidUrl() {
-        CreateUrlRequest request = new CreateUrlRequest("not-a-url", null);
+        CreateUrlRequest request = new CreateUrlRequest("not-a-url", null, null);
 
         assertThatThrownBy(() -> service.createShortUrl(request))
             .isInstanceOf(InvalidUrlException.class)
@@ -86,7 +87,7 @@ class UrlShortenerServiceTest {
     @Test
     void rejectsPastExpiration() {
         LocalDateTime expiresAt = LocalDateTime.of(2026, 4, 19, 11, 59);
-        CreateUrlRequest request = new CreateUrlRequest("https://example.com", expiresAt);
+        CreateUrlRequest request = new CreateUrlRequest("https://example.com", null, expiresAt);
 
         assertThatThrownBy(() -> service.createShortUrl(request))
             .isInstanceOf(InvalidUrlException.class)
@@ -96,7 +97,7 @@ class UrlShortenerServiceTest {
     @Test
     void blocksExpiredUrlOnRead() {
         CreateUrlResponse created = service.createShortUrl(
-            new CreateUrlRequest("https://example.com", LocalDateTime.of(2026, 4, 19, 12, 1))
+            new CreateUrlRequest("https://example.com", null, LocalDateTime.of(2026, 4, 19, 12, 1))
         );
 
         clock.setInstant(Instant.parse("2026-04-19T12:02:00Z"));
@@ -108,7 +109,7 @@ class UrlShortenerServiceTest {
     @Test
     void returnsStatsForExpiredUrl() {
         CreateUrlResponse created = service.createShortUrl(
-            new CreateUrlRequest("https://example.com/expired-stats", LocalDateTime.of(2026, 4, 19, 12, 1))
+            new CreateUrlRequest("https://example.com/expired-stats", null, LocalDateTime.of(2026, 4, 19, 12, 1))
         );
 
         clock.setInstant(Instant.parse("2026-04-19T12:02:00Z"));
@@ -117,5 +118,38 @@ class UrlShortenerServiceTest {
 
         assertThat(stats.originalUrl()).isEqualTo("https://example.com/expired-stats");
         assertThat(stats.expiresAt()).isEqualTo(LocalDateTime.of(2026, 4, 19, 12, 1));
+    }
+
+    @Test
+    void createsShortUrlWithCustomAlias() {
+        CreateUrlResponse created = service.createShortUrl(
+            new CreateUrlRequest("https://example.com/custom", "my-alias_123", null)
+        );
+
+        String resolved = service.resolveOriginalUrl("my-alias_123");
+
+        assertThat(created.shortCode()).isEqualTo("my-alias_123");
+        assertThat(created.shortUrl()).endsWith("/my-alias_123");
+        assertThat(resolved).isEqualTo("https://example.com/custom");
+    }
+
+    @Test
+    void rejectsDuplicateAlias() {
+        service.createShortUrl(new CreateUrlRequest("https://example.com/one", "taken", null));
+
+        assertThatThrownBy(() -> service.createShortUrl(
+                new CreateUrlRequest("https://example.com/two", "taken", null)
+            ))
+            .isInstanceOf(AliasAlreadyExistsException.class)
+            .hasMessage("Alias is already taken: taken");
+    }
+
+    @Test
+    void rejectsInvalidAliasCharacters() {
+        assertThatThrownBy(() -> service.createShortUrl(
+                new CreateUrlRequest("https://example.com", "bad alias!", null)
+            ))
+            .isInstanceOf(InvalidUrlException.class)
+            .hasMessageContaining("alias must be 3-64 characters");
     }
 }

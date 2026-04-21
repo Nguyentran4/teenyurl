@@ -3,6 +3,7 @@ package com.example.demo.service;
 import com.example.demo.dto.CreateUrlRequest;
 import com.example.demo.dto.CreateUrlResponse;
 import com.example.demo.dto.UrlStatsResponse;
+import com.example.demo.exception.AliasAlreadyExistsException;
 import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
 import com.example.demo.exception.UrlNotFoundException;
@@ -13,6 +14,8 @@ import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.regex.Pattern;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -20,6 +23,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @Service
 public class UrlShortenerService {
     private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    private static final Pattern ALIAS_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{3,64}$");
 
     private final UrlMappingRepository urlMappingRepository;
     private final RedirectCacheService redirectCacheService;
@@ -40,13 +44,22 @@ public class UrlShortenerService {
         String originalUrl = validateOriginalUrl(request);
         LocalDateTime now = LocalDateTime.now(clock);
         validateExpiration(request.expiresAt(), now);
+        String alias = validateAlias(request.alias());
 
         UrlMapping mapping = new UrlMapping(originalUrl, now, request.expiresAt());
-        mapping = urlMappingRepository.saveAndFlush(mapping);
+        String shortCode;
 
-        String shortCode = encodeBase62(mapping.getId());
-        mapping.setShortCode(shortCode);
-        mapping = urlMappingRepository.save(mapping);
+        if (alias == null) {
+            mapping = urlMappingRepository.saveAndFlush(mapping);
+            shortCode = encodeBase62(mapping.getId());
+            mapping.setShortCode(shortCode);
+            mapping = saveMapping(mapping, shortCode);
+        } else {
+            shortCode = alias;
+            ensureAliasAvailable(shortCode);
+            mapping.setShortCode(shortCode);
+            mapping = saveMapping(mapping, shortCode);
+        }
 
         return new CreateUrlResponse(
             shortCode,
@@ -55,6 +68,14 @@ public class UrlShortenerService {
             mapping.getCreatedAt(),
             mapping.getExpiresAt()
         );
+    }
+
+    private UrlMapping saveMapping(UrlMapping mapping, String shortCode) {
+        try {
+            return urlMappingRepository.saveAndFlush(mapping);
+        } catch (DataIntegrityViolationException exception) {
+            throw new AliasAlreadyExistsException(shortCode);
+        }
     }
 
     @Transactional
@@ -147,6 +168,25 @@ public class UrlShortenerService {
     private void validateExpiration(LocalDateTime expiresAt, LocalDateTime now) {
         if (expiresAt != null && !expiresAt.isAfter(now)) {
             throw new InvalidUrlException("expiresAt must be in the future");
+        }
+    }
+
+    private String validateAlias(String alias) {
+        if (alias == null || alias.isBlank()) {
+            return null;
+        }
+
+        String normalizedAlias = alias.trim();
+        if (!ALIAS_PATTERN.matcher(normalizedAlias).matches()) {
+            throw new InvalidUrlException("alias must be 3-64 characters and contain only letters, numbers, hyphens, or underscores");
+        }
+
+        return normalizedAlias;
+    }
+
+    private void ensureAliasAvailable(String alias) {
+        if (urlMappingRepository.existsByShortCode(alias)) {
+            throw new AliasAlreadyExistsException(alias);
         }
     }
 

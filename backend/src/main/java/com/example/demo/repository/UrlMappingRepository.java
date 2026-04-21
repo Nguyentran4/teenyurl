@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
     Optional<UrlMapping> findByShortCode(String shortCode);
 
+    boolean existsByShortCode(String shortCode);
+
     @Modifying
     @Query("""
         update UrlMapping mapping

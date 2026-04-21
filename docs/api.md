@@ -7,9 +7,12 @@
 ```json
 {
   "originalUrl": "https://example.com/very/long/link",
+  "alias": "optional-custom-name",
   "expiresAt": "2026-12-31T23:59:59"
 }
 ```
+
+`alias` is optional. If provided, it must be unique and contain only letters, numbers, hyphens, or underscores.
 
 ### Response
 ```json
@@ -45,5 +48,4 @@
 
 ## Optional Future APIs
 - `DELETE /api/urls/{shortCode}`
-- `POST /api/urls/custom`
 - `GET /api/urls`
