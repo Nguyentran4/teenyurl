@@ -42,7 +42,7 @@ teenyurl/
 - [ ] Add Redis caching
 - [x] Add expiration support
 - [x] Add click analytics
-- [ ] Add Docker Compose
+- [x] Add Docker Compose
 - [x] Add tests
 - [ ] Document architecture
 
@@ -66,9 +66,53 @@ Current MVP:
 - PostgreSQL URL storage
 - Persisted click counts
 
+### Start PostgreSQL
+From the repository root:
+
+```powershell
+docker compose up -d
+```
+
+This starts PostgreSQL on `localhost:5432` with:
+
+```text
+database: teenyurl
+username: teenyurl
+password: teenyurl
+```
+
+### Run the Backend
+From `backend/`:
+
+```powershell
+.\mvnw.cmd spring-boot:run
+```
+
+The app uses these defaults:
+
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/teenyurl
+spring.datasource.username=teenyurl
+spring.datasource.password=teenyurl
+```
+
+You can override them with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`.
+
+### Stop PostgreSQL
+From the repository root:
+
+```powershell
+docker compose down
+```
+
+To remove local database data too:
+
+```powershell
+docker compose down -v
+```
+
 Planned local stack:
 - Redis
-- Docker Compose
 
 ## Notes
 This project is intended to be resume-friendly and production-inspired, with focus on distributed systems concepts such as:
