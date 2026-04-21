@@ -22,10 +22,16 @@ public class UrlShortenerService {
     private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
     private final UrlMappingRepository urlMappingRepository;
+    private final RedirectCacheService redirectCacheService;
     private final Clock clock;
 
-    public UrlShortenerService(UrlMappingRepository urlMappingRepository, Clock clock) {
+    public UrlShortenerService(
+        UrlMappingRepository urlMappingRepository,
+        RedirectCacheService redirectCacheService,
+        Clock clock
+    ) {
         this.urlMappingRepository = urlMappingRepository;
+        this.redirectCacheService = redirectCacheService;
         this.clock = clock;
     }
 
@@ -53,8 +59,30 @@ public class UrlShortenerService {
 
     @Transactional
     public String resolveOriginalUrl(String shortCode) {
-        UrlMapping mapping = findActiveMapping(shortCode);
+        LocalDateTime now = LocalDateTime.now(clock);
+        return redirectCacheService
+            .getOriginalUrl(shortCode)
+            .map(originalUrl -> resolveCachedRedirect(shortCode, originalUrl, now))
+            .orElseGet(() -> resolveDatabaseRedirect(shortCode, now));
+    }
+
+    private String resolveCachedRedirect(String shortCode, String originalUrl, LocalDateTime now) {
+        int updatedRows = urlMappingRepository.incrementClickCountForRedirect(shortCode, now);
+        if (updatedRows == 1) {
+            return originalUrl;
+        }
+
+        redirectCacheService.evict(shortCode);
+        UrlMapping mapping = findActiveMapping(shortCode, now);
         mapping.incrementClickCount();
+        redirectCacheService.cacheRedirect(mapping, now);
+        return mapping.getOriginalUrl();
+    }
+
+    private String resolveDatabaseRedirect(String shortCode, LocalDateTime now) {
+        UrlMapping mapping = findActiveMapping(shortCode, now);
+        mapping.incrementClickCount();
+        redirectCacheService.cacheRedirect(mapping, now);
         return mapping.getOriginalUrl();
     }
 
@@ -71,13 +99,17 @@ public class UrlShortenerService {
     }
 
     private UrlMapping findActiveMapping(String shortCode) {
+        return findActiveMapping(shortCode, LocalDateTime.now(clock));
+    }
+
+    private UrlMapping findActiveMapping(String shortCode, LocalDateTime now) {
         UrlMapping mapping = urlMappingRepository
             .findByShortCode(shortCode)
             .orElseThrow(() -> new UrlNotFoundException(shortCode));
         if (!mapping.isActive()) {
             throw new UrlNotFoundException(shortCode);
         }
-        if (mapping.isExpired(LocalDateTime.now(clock))) {
+        if (mapping.isExpired(now)) {
             throw new UrlExpiredException(shortCode);
         }
         return mapping;

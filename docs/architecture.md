@@ -7,12 +7,9 @@ TeenyURL is a distributed URL shortener designed to convert long URLs into short
 1. Client sends a long URL to the backend
 2. Backend generates a unique short code
 3. URL mapping is saved in PostgreSQL
-4. Redirect requests look up the mapping in PostgreSQL
-5. Analytics are updated on redirect
-
-Future cache flow:
-- Frequently accessed mappings are cached in Redis
-- Redirect requests check Redis first, then PostgreSQL
+4. Redirect requests check Redis for the short code mapping
+5. On cache miss, the service loads the mapping from PostgreSQL and stores it in Redis
+6. Analytics are updated in PostgreSQL on every redirect
 
 ## Main Components
 - API Layer
@@ -43,7 +40,10 @@ Main table:
 ## Cache
 Redis stores:
 - short_code -> original_url
-- optional metadata for frequently accessed links
+- redirect mappings for frequently accessed links
+- TTL based on URL expiration, or a default redirect cache TTL for non-expiring links
+
+PostgreSQL remains the source of truth. A Redis cache hit still performs a database click-count update so analytics stay correct.
 
 ## Scaling Considerations
 - multiple backend instances behind a load balancer

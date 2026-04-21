@@ -16,5 +16,20 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: teenyurl-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - teenyurl-redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   teenyurl-postgres-data:
+  teenyurl-redis-data:

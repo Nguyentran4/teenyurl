@@ -39,7 +39,7 @@ teenyurl/
 - [x] Create URL shortening API
 - [x] Create redirect endpoint
 - [x] Save URLs in PostgreSQL
-- [ ] Add Redis caching
+- [x] Add Redis caching
 - [x] Add expiration support
 - [x] Add click analytics
 - [x] Add Docker Compose
@@ -65,8 +65,9 @@ Current MVP:
 - Spring Boot app
 - PostgreSQL URL storage
 - Persisted click counts
+- Redis redirect lookup cache
 
-### Start PostgreSQL
+### Start PostgreSQL and Redis
 From the repository root:
 
 ```powershell
@@ -80,6 +81,8 @@ database: teenyurl
 username: teenyurl
 password: teenyurl
 ```
+
+It also starts Redis on `localhost:6379`.
 
 ### Run the Backend
 From `backend/`:
@@ -98,7 +101,15 @@ spring.datasource.password=teenyurl
 
 You can override them with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`.
 
-### Stop PostgreSQL
+Redis uses these defaults:
+
+```properties
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+teenyurl.cache.redirect.default-ttl=PT1H
+```
+
+### Stop Local Services
 From the repository root:
 
 ```powershell
@@ -112,7 +123,7 @@ docker compose down -v
 ```
 
 Planned local stack:
-- Redis
+- Dockerized backend service
 
 ## Notes
 This project is intended to be resume-friendly and production-inspired, with focus on distributed systems concepts such as:

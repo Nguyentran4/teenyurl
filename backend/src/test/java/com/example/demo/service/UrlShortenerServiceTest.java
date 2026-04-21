@@ -3,26 +3,25 @@ package com.example.demo.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.demo.SupportTestConfiguration;
+import com.example.demo.SupportTestConfiguration.InMemoryRedirectCacheService;
+import com.example.demo.SupportTestConfiguration.MutableClock;
 import com.example.demo.dto.CreateUrlRequest;
 import com.example.demo.dto.CreateUrlResponse;
 import com.example.demo.dto.UrlStatsResponse;
 import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
 import com.example.demo.repository.UrlMappingRepository;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Import;
 
 @SpringBootTest
+@Import(SupportTestConfiguration.class)
 class UrlShortenerServiceTest {
     @Autowired
     private UrlShortenerService service;
@@ -33,9 +32,13 @@ class UrlShortenerServiceTest {
     @Autowired
     private MutableClock clock;
 
+    @Autowired
+    private InMemoryRedirectCacheService redirectCacheService;
+
     @BeforeEach
     void setUp() {
         repository.deleteAll();
+        redirectCacheService.clear();
         clock.setInstant(Instant.parse("2026-04-19T12:00:00Z"));
     }
 
@@ -51,6 +54,24 @@ class UrlShortenerServiceTest {
         assertThat(created.originalUrl()).isEqualTo("https://example.com/articles/123");
         assertThat(resolved).isEqualTo("https://example.com/articles/123");
         assertThat(stats.clickCount()).isEqualTo(1);
+    }
+
+    @Test
+    void cachesRedirectLookupAndKeepsClickCountPersisted() {
+        CreateUrlResponse created = service.createShortUrl(
+            new CreateUrlRequest("https://example.com/cache-me", null)
+        );
+
+        assertThat(redirectCacheService.contains(created.shortCode())).isFalse();
+
+        String firstRedirect = service.resolveOriginalUrl(created.shortCode());
+        String secondRedirect = service.resolveOriginalUrl(created.shortCode());
+        UrlStatsResponse stats = service.getStats(created.shortCode());
+
+        assertThat(firstRedirect).isEqualTo("https://example.com/cache-me");
+        assertThat(secondRedirect).isEqualTo("https://example.com/cache-me");
+        assertThat(redirectCacheService.contains(created.shortCode())).isTrue();
+        assertThat(stats.clickCount()).isEqualTo(2);
     }
 
     @Test
@@ -82,41 +103,5 @@ class UrlShortenerServiceTest {
 
         assertThatThrownBy(() -> service.resolveOriginalUrl(created.shortCode()))
             .isInstanceOf(UrlExpiredException.class);
-    }
-
-    @TestConfiguration
-    static class ClockTestConfiguration {
-        @Bean
-        @Primary
-        MutableClock mutableClock() {
-            return new MutableClock(Instant.parse("2026-04-19T12:00:00Z"));
-        }
-    }
-
-    static class MutableClock extends Clock {
-        private Instant instant;
-
-        MutableClock(Instant instant) {
-            this.instant = instant;
-        }
-
-        void setInstant(Instant instant) {
-            this.instant = instant;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneOffset.UTC;
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
-
-        @Override
-        public Instant instant() {
-            return instant;
-        }
     }
 }
