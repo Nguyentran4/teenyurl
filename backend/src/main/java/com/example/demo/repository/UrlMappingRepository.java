@@ -17,9 +17,20 @@ public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
     @Query("""
         update UrlMapping mapping
         set mapping.clickCount = mapping.clickCount + 1
+          , mapping.lastAccessedAt = :accessedAt
+          , mapping.lastUserAgent = :userAgent
+          , mapping.lastReferrer = :referrer
+          , mapping.lastIpHash = :ipHash
         where mapping.shortCode = :shortCode
           and mapping.active = true
           and (mapping.expiresAt is null or mapping.expiresAt > :now)
         """)
-    int incrementClickCountForRedirect(@Param("shortCode") String shortCode, @Param("now") LocalDateTime now);
+    int recordAccessForRedirect(
+        @Param("shortCode") String shortCode,
+        @Param("now") LocalDateTime now,
+        @Param("accessedAt") LocalDateTime accessedAt,
+        @Param("userAgent") String userAgent,
+        @Param("referrer") String referrer,
+        @Param("ipHash") String ipHash
+    );
 }

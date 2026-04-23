@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.example.demo.SupportTestConfiguration;
 import com.example.demo.SupportTestConfiguration.InMemoryRedirectCacheService;
 import com.example.demo.SupportTestConfiguration.MutableClock;
+import com.example.demo.repository.UrlDailyClickRepository;
 import com.example.demo.repository.UrlMappingRepository;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class UrlControllerIntegrationTest {
     private UrlMappingRepository repository;
 
     @Autowired
+    private UrlDailyClickRepository dailyClickRepository;
+
+    @Autowired
     private InMemoryRedirectCacheService redirectCacheService;
 
     @Autowired
@@ -45,6 +49,7 @@ class UrlControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        dailyClickRepository.deleteAll();
         repository.deleteAll();
         redirectCacheService.clear();
         clock.setInstant(Instant.parse("2026-04-19T12:00:00Z"));
@@ -68,7 +73,10 @@ class UrlControllerIntegrationTest {
         JsonNode response = objectMapper.readTree(createResult.getResponse().getContentAsString());
         String shortCode = response.get("shortCode").asText();
 
-        mockMvc.perform(get("/" + shortCode))
+        mockMvc.perform(get("/" + shortCode)
+                .header("User-Agent", "MockMvc Browser")
+                .header("Referer", "https://referrer.example/home")
+                .header("X-Forwarded-For", "198.51.100.22, 10.0.0.1"))
             .andExpect(status().isFound())
             .andExpect(header().string("Location", "https://example.com/very/long/link"));
 
@@ -76,7 +84,15 @@ class UrlControllerIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shortCode").value(shortCode))
             .andExpect(jsonPath("$.originalUrl").value("https://example.com/very/long/link"))
-            .andExpect(jsonPath("$.clickCount").value(1));
+            .andExpect(jsonPath("$.clickCount").value(1))
+            .andExpect(jsonPath("$.lastAccessedAt").value("2026-04-19T12:00:00"))
+            .andExpect(jsonPath("$.analytics.totalClicks").value(1))
+            .andExpect(jsonPath("$.analytics.lastAccessedAt").value("2026-04-19T12:00:00"))
+            .andExpect(jsonPath("$.analytics.dailyClicks[0].date").value("2026-04-19"))
+            .andExpect(jsonPath("$.analytics.dailyClicks[0].count").value(1))
+            .andExpect(jsonPath("$.analytics.lastRequest.userAgent").value("MockMvc Browser"))
+            .andExpect(jsonPath("$.analytics.lastRequest.referrer").value("https://referrer.example/home"))
+            .andExpect(jsonPath("$.analytics.lastRequest.ipHash").isNotEmpty());
     }
 
     @Test

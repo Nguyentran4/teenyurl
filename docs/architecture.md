@@ -35,7 +35,17 @@ Main table:
 - created_at
 - expires_at
 - click_count
+- last_accessed_at
+- last_user_agent
+- last_referrer
+- last_ip_hash
 - active
+
+Daily analytics table:
+- id
+- url_mapping_id
+- access_date
+- click_count
 
 ## Cache
 Redis stores:
@@ -43,7 +53,15 @@ Redis stores:
 - redirect mappings for frequently accessed links
 - TTL based on URL expiration, or a default redirect cache TTL for non-expiring links
 
-PostgreSQL remains the source of truth. A Redis cache hit still performs a database click-count update so analytics stay correct.
+PostgreSQL remains the source of truth. A Redis cache hit still performs a database analytics update so totals, last-access metadata, and daily rollups stay correct.
+
+## Analytics
+Redirects update analytics synchronously in PostgreSQL:
+- total click count on the URL mapping
+- last accessed timestamp
+- daily click rollup by UTC date
+- latest user-agent and referrer
+- salted SHA-256 hash of the client IP, derived from `X-Forwarded-For` when present
 
 ## Scaling Considerations
 - multiple backend instances behind a load balancer

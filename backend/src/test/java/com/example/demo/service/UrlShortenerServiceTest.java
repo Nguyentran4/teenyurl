@@ -8,12 +8,15 @@ import com.example.demo.SupportTestConfiguration.InMemoryRedirectCacheService;
 import com.example.demo.SupportTestConfiguration.MutableClock;
 import com.example.demo.dto.CreateUrlRequest;
 import com.example.demo.dto.CreateUrlResponse;
+import com.example.demo.dto.RedirectRequestMetadata;
 import com.example.demo.dto.UrlStatsResponse;
 import com.example.demo.exception.AliasAlreadyExistsException;
 import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
+import com.example.demo.repository.UrlDailyClickRepository;
 import com.example.demo.repository.UrlMappingRepository;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +34,9 @@ class UrlShortenerServiceTest {
     private UrlMappingRepository repository;
 
     @Autowired
+    private UrlDailyClickRepository dailyClickRepository;
+
+    @Autowired
     private MutableClock clock;
 
     @Autowired
@@ -38,6 +44,7 @@ class UrlShortenerServiceTest {
 
     @BeforeEach
     void setUp() {
+        dailyClickRepository.deleteAll();
         repository.deleteAll();
         redirectCacheService.clear();
         clock.setInstant(Instant.parse("2026-04-19T12:00:00Z"));
@@ -55,6 +62,10 @@ class UrlShortenerServiceTest {
         assertThat(created.originalUrl()).isEqualTo("https://example.com/articles/123");
         assertThat(resolved).isEqualTo("https://example.com/articles/123");
         assertThat(stats.clickCount()).isEqualTo(1);
+        assertThat(stats.lastAccessedAt()).isEqualTo(LocalDateTime.of(2026, 4, 19, 12, 0));
+        assertThat(stats.analytics().totalClicks()).isEqualTo(1);
+        assertThat(stats.analytics().dailyClicks())
+            .containsExactly(new UrlStatsResponse.DailyClick(LocalDate.of(2026, 4, 19), 1));
     }
 
     @Test
@@ -73,6 +84,41 @@ class UrlShortenerServiceTest {
         assertThat(secondRedirect).isEqualTo("https://example.com/cache-me");
         assertThat(redirectCacheService.contains(created.shortCode())).isTrue();
         assertThat(stats.clickCount()).isEqualTo(2);
+        assertThat(stats.analytics().dailyClicks())
+            .containsExactly(new UrlStatsResponse.DailyClick(LocalDate.of(2026, 4, 19), 2));
+    }
+
+    @Test
+    void tracksDailyClicksLastAccessAndSafeRequestMetadata() {
+        CreateUrlResponse created = service.createShortUrl(
+            new CreateUrlRequest("https://example.com/analytics", null, null)
+        );
+
+        service.resolveOriginalUrl(created.shortCode(), new RedirectRequestMetadata(
+            "JUnit Browser",
+            "https://referrer.example/start",
+            "203.0.113.10"
+        ));
+        clock.setInstant(Instant.parse("2026-04-20T09:15:00Z"));
+        service.resolveOriginalUrl(created.shortCode(), new RedirectRequestMetadata(
+            "JUnit Browser 2",
+            null,
+            "203.0.113.10"
+        ));
+
+        UrlStatsResponse stats = service.getStats(created.shortCode());
+
+        assertThat(stats.clickCount()).isEqualTo(2);
+        assertThat(stats.analytics().lastAccessedAt()).isEqualTo(LocalDateTime.of(2026, 4, 20, 9, 15));
+        assertThat(stats.analytics().dailyClicks()).containsExactly(
+            new UrlStatsResponse.DailyClick(LocalDate.of(2026, 4, 19), 1),
+            new UrlStatsResponse.DailyClick(LocalDate.of(2026, 4, 20), 1)
+        );
+        assertThat(stats.analytics().lastRequest().userAgent()).isEqualTo("JUnit Browser 2");
+        assertThat(stats.analytics().lastRequest().referrer()).isNull();
+        assertThat(stats.analytics().lastRequest().ipHash())
+            .hasSize(64)
+            .doesNotContain("203.0.113.10");
     }
 
     @Test

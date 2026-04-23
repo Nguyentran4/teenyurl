@@ -31,6 +31,8 @@
 - Look up short code
 - Redirect to original URL
 - Increment click count
+- Update last access time and daily click rollup
+- Store latest user-agent, referrer, and a salted IP hash when available
 
 ## Get URL Stats
 **GET** `/api/urls/{shortCode}/stats`
@@ -42,9 +44,27 @@
   "originalUrl": "https://example.com/very/long/link",
   "clickCount": 42,
   "createdAt": "2026-04-18T12:00:00",
-  "expiresAt": "2026-12-31T23:59:59"
+  "expiresAt": "2026-12-31T23:59:59",
+  "lastAccessedAt": "2026-04-20T09:15:00",
+  "analytics": {
+    "totalClicks": 42,
+    "lastAccessedAt": "2026-04-20T09:15:00",
+    "dailyClicks": [
+      {
+        "date": "2026-04-20",
+        "count": 12
+      }
+    ],
+    "lastRequest": {
+      "userAgent": "Mozilla/5.0",
+      "referrer": "https://referrer.example/home",
+      "ipHash": "64-character-sha256-hex"
+    }
+  }
 }
 ```
+
+`clickCount` remains available as the total for simple clients. Structured analytics are returned under `analytics`.
 
 ## Optional Future APIs
 - `DELETE /api/urls/{shortCode}`

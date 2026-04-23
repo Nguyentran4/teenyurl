@@ -51,7 +51,7 @@ teenyurl/
 - Redirect by short code
 - Custom alias support
 - Expiration support
-- Analytics for total clicks
+- Analytics for total clicks, last access time, daily clicks, and privacy-safe request metadata
 - Redis cache for hot URLs
 - Clean layered backend structure
 
@@ -107,7 +107,10 @@ Redis uses these defaults:
 spring.data.redis.host=localhost
 spring.data.redis.port=6379
 teenyurl.cache.redirect.default-ttl=PT1H
+teenyurl.analytics.ip-hash-salt=teenyurl-local-dev
 ```
+
+Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
 
 ### Stop Local Services
 From the repository root:
