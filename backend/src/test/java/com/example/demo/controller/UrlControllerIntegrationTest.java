@@ -80,6 +80,8 @@ class UrlControllerIntegrationTest {
             .andExpect(status().isFound())
             .andExpect(header().string("Location", "https://example.com/very/long/link"));
 
+        awaitClickCount(shortCode, 1);
+
         mockMvc.perform(get("/api/urls/" + shortCode + "/stats"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shortCode").value(shortCode))
@@ -113,6 +115,8 @@ class UrlControllerIntegrationTest {
         mockMvc.perform(get("/launch_2026"))
             .andExpect(status().isFound())
             .andExpect(header().string("Location", "https://example.com/custom-alias"));
+
+        awaitClickCount("launch_2026", 1);
     }
 
     @Test
@@ -226,5 +230,29 @@ class UrlControllerIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.shortCode").value(shortCode))
             .andExpect(jsonPath("$.expiresAt").value("2026-04-19T12:01:00"));
+    }
+
+    private void awaitClickCount(String shortCode, long expectedClickCount) {
+        long deadline = System.nanoTime() + 2_000_000_000L;
+
+        while (System.nanoTime() < deadline) {
+            long clickCount = repository
+                .findByShortCode(shortCode)
+                .map(mapping -> mapping.getClickCount())
+                .orElse(0L);
+            if (clickCount == expectedClickCount) {
+                return;
+            }
+            sleepBriefly();
+        }
+    }
+
+    private void sleepBriefly() {
+        try {
+            Thread.sleep(25);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for analytics update", exception);
+        }
     }
 }

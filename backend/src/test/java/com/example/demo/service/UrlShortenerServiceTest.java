@@ -56,7 +56,7 @@ class UrlShortenerServiceTest {
 
         CreateUrlResponse created = service.createShortUrl(request);
         String resolved = service.resolveOriginalUrl(created.shortCode());
-        UrlStatsResponse stats = service.getStats(created.shortCode());
+        UrlStatsResponse stats = awaitStats(created.shortCode(), 1);
 
         assertThat(created.shortCode()).isNotBlank();
         assertThat(created.originalUrl()).isEqualTo("https://example.com/articles/123");
@@ -78,7 +78,7 @@ class UrlShortenerServiceTest {
 
         String firstRedirect = service.resolveOriginalUrl(created.shortCode());
         String secondRedirect = service.resolveOriginalUrl(created.shortCode());
-        UrlStatsResponse stats = service.getStats(created.shortCode());
+        UrlStatsResponse stats = awaitStats(created.shortCode(), 2);
 
         assertThat(firstRedirect).isEqualTo("https://example.com/cache-me");
         assertThat(secondRedirect).isEqualTo("https://example.com/cache-me");
@@ -106,7 +106,7 @@ class UrlShortenerServiceTest {
             "203.0.113.10"
         ));
 
-        UrlStatsResponse stats = service.getStats(created.shortCode());
+        UrlStatsResponse stats = awaitStats(created.shortCode(), 2);
 
         assertThat(stats.clickCount()).isEqualTo(2);
         assertThat(stats.analytics().lastAccessedAt()).isEqualTo(LocalDateTime.of(2026, 4, 20, 9, 15));
@@ -173,6 +173,7 @@ class UrlShortenerServiceTest {
         );
 
         String resolved = service.resolveOriginalUrl("my-alias_123");
+        awaitStats("my-alias_123", 1);
 
         assertThat(created.shortCode()).isEqualTo("my-alias_123");
         assertThat(created.shortUrl()).endsWith("/my-alias_123");
@@ -197,5 +198,29 @@ class UrlShortenerServiceTest {
             ))
             .isInstanceOf(InvalidUrlException.class)
             .hasMessageContaining("alias must be 3-64 characters");
+    }
+
+    private UrlStatsResponse awaitStats(String shortCode, long expectedClicks) {
+        long deadline = System.nanoTime() + 2_000_000_000L;
+        UrlStatsResponse stats = service.getStats(shortCode);
+
+        while (System.nanoTime() < deadline) {
+            stats = service.getStats(shortCode);
+            if (stats.clickCount() == expectedClicks) {
+                return stats;
+            }
+            sleepBriefly();
+        }
+
+        return stats;
+    }
+
+    private void sleepBriefly() {
+        try {
+            Thread.sleep(25);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for analytics update", exception);
+        }
     }
 }

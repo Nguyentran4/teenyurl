@@ -8,23 +8,17 @@ import com.example.demo.exception.AliasAlreadyExistsException;
 import com.example.demo.exception.InvalidUrlException;
 import com.example.demo.exception.UrlExpiredException;
 import com.example.demo.exception.UrlNotFoundException;
-import com.example.demo.model.UrlDailyClick;
 import com.example.demo.model.UrlMapping;
 import com.example.demo.repository.UrlDailyClickRepository;
 import com.example.demo.repository.UrlMappingRepository;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,21 +32,21 @@ public class UrlShortenerService {
     private final UrlMappingRepository urlMappingRepository;
     private final UrlDailyClickRepository urlDailyClickRepository;
     private final RedirectCacheService redirectCacheService;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
-    private final String ipHashSalt;
 
     public UrlShortenerService(
         UrlMappingRepository urlMappingRepository,
         UrlDailyClickRepository urlDailyClickRepository,
         RedirectCacheService redirectCacheService,
-        Clock clock,
-        @Value("${teenyurl.analytics.ip-hash-salt:teenyurl-local-dev}") String ipHashSalt
+        ApplicationEventPublisher eventPublisher,
+        Clock clock
     ) {
         this.urlMappingRepository = urlMappingRepository;
         this.urlDailyClickRepository = urlDailyClickRepository;
         this.redirectCacheService = redirectCacheService;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
-        this.ipHashSalt = ipHashSalt;
     }
 
     @Transactional
@@ -94,53 +88,34 @@ public class UrlShortenerService {
         }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public String resolveOriginalUrl(String shortCode) {
         return resolveOriginalUrl(shortCode, RedirectRequestMetadata.empty());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public String resolveOriginalUrl(String shortCode, RedirectRequestMetadata metadata) {
         LocalDateTime now = LocalDateTime.now(clock);
-        AccessMetadata accessMetadata = sanitizeMetadata(metadata);
         return redirectCacheService
             .getOriginalUrl(shortCode)
-            .map(originalUrl -> resolveCachedRedirect(shortCode, originalUrl, now, accessMetadata))
-            .orElseGet(() -> resolveDatabaseRedirect(shortCode, now, accessMetadata));
+            .map(originalUrl -> resolveCachedRedirect(shortCode, originalUrl, now, metadata))
+            .orElseGet(() -> resolveDatabaseRedirect(shortCode, now, metadata));
     }
 
     private String resolveCachedRedirect(
         String shortCode,
         String originalUrl,
         LocalDateTime now,
-        AccessMetadata accessMetadata
+        RedirectRequestMetadata metadata
     ) {
-        int updatedRows = urlMappingRepository.recordAccessForRedirect(
-            shortCode,
-            now,
-            now,
-            accessMetadata.userAgent(),
-            accessMetadata.referrer(),
-            accessMetadata.ipHash()
-        );
-        if (updatedRows == 1) {
-            recordDailyClick(shortCode, now.toLocalDate());
-            return originalUrl;
-        }
-
-        redirectCacheService.evict(shortCode);
-        UrlMapping mapping = findActiveMapping(shortCode, now);
-        mapping.recordAccess(now, accessMetadata.userAgent(), accessMetadata.referrer(), accessMetadata.ipHash());
-        recordDailyClick(mapping, now.toLocalDate());
-        redirectCacheService.cacheRedirect(mapping, now);
-        return mapping.getOriginalUrl();
+        eventPublisher.publishEvent(new UrlAccessedEvent(shortCode, now, metadata));
+        return originalUrl;
     }
 
-    private String resolveDatabaseRedirect(String shortCode, LocalDateTime now, AccessMetadata accessMetadata) {
+    private String resolveDatabaseRedirect(String shortCode, LocalDateTime now, RedirectRequestMetadata metadata) {
         UrlMapping mapping = findActiveMapping(shortCode, now);
-        mapping.recordAccess(now, accessMetadata.userAgent(), accessMetadata.referrer(), accessMetadata.ipHash());
-        recordDailyClick(mapping, now.toLocalDate());
         redirectCacheService.cacheRedirect(mapping, now);
+        eventPublisher.publishEvent(new UrlAccessedEvent(shortCode, now, metadata));
         return mapping.getOriginalUrl();
     }
 
@@ -180,19 +155,6 @@ public class UrlShortenerService {
             dailyClicks,
             lastRequest
         );
-    }
-
-    private void recordDailyClick(String shortCode, LocalDate accessDate) {
-        UrlMapping mapping = findExistingMapping(shortCode);
-        recordDailyClick(mapping, accessDate);
-    }
-
-    private void recordDailyClick(UrlMapping mapping, LocalDate accessDate) {
-        UrlDailyClick dailyClick = urlDailyClickRepository
-            .findByUrlMappingAndAccessDate(mapping, accessDate)
-            .orElseGet(() -> new UrlDailyClick(mapping, accessDate));
-        dailyClick.incrementClickCount();
-        urlDailyClickRepository.save(dailyClick);
     }
 
     private UrlMapping findActiveMapping(String shortCode) {
@@ -289,42 +251,4 @@ public class UrlShortenerService {
         return encoded.reverse().toString();
     }
 
-    private AccessMetadata sanitizeMetadata(RedirectRequestMetadata metadata) {
-        RedirectRequestMetadata safeMetadata = metadata == null ? RedirectRequestMetadata.empty() : metadata;
-        return new AccessMetadata(
-            trimToLength(safeMetadata.userAgent(), 512),
-            trimToLength(safeMetadata.referrer(), 2048),
-            hashIpAddress(safeMetadata.clientIp())
-        );
-    }
-
-    private String hashIpAddress(String clientIp) {
-        if (clientIp == null || clientIp.isBlank()) {
-            return null;
-        }
-
-        String normalizedIp = clientIp.trim().toLowerCase(Locale.ROOT);
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest((ipHashSalt + ":" + normalizedIp).getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 digest is not available", exception);
-        }
-    }
-
-    private String trimToLength(String value, int maxLength) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.length() <= maxLength ? trimmed : trimmed.substring(0, maxLength);
-    }
-
-    private record AccessMetadata(
-        String userAgent,
-        String referrer,
-        String ipHash
-    ) {
-    }
 }

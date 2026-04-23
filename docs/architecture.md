@@ -9,7 +9,8 @@ TeenyURL is a distributed URL shortener designed to convert long URLs into short
 3. URL mapping is saved in PostgreSQL
 4. Redirect requests check Redis for the short code mapping
 5. On cache miss, the service loads the mapping from PostgreSQL and stores it in Redis
-6. Analytics are updated in PostgreSQL on every redirect
+6. Redirect handling publishes an analytics event and returns without waiting for analytics writes
+7. An async analytics worker updates PostgreSQL in the background
 
 ## Main Components
 - API Layer
@@ -53,15 +54,17 @@ Redis stores:
 - redirect mappings for frequently accessed links
 - TTL based on URL expiration, or a default redirect cache TTL for non-expiring links
 
-PostgreSQL remains the source of truth. A Redis cache hit still performs a database analytics update so totals, last-access metadata, and daily rollups stay correct.
+PostgreSQL remains the source of truth. A Redis cache hit publishes the same analytics event as a cache miss, so totals, last-access metadata, and daily rollups stay correct without blocking the redirect response.
 
 ## Analytics
-Redirects update analytics synchronously in PostgreSQL:
+Redirects publish a lightweight in-process event. `AnalyticsService` handles that event asynchronously with its own transaction and updates:
 - total click count on the URL mapping
 - last accessed timestamp
 - daily click rollup by UTC date
 - latest user-agent and referrer
 - salted SHA-256 hash of the client IP, derived from `X-Forwarded-For` when present
+
+The current implementation uses Spring async with a bounded single-worker queue to keep redirect latency low and avoid in-process rollup races. The event boundary can later be replaced by a durable queue such as Kafka without changing redirect controller behavior.
 
 ## Scaling Considerations
 - multiple backend instances behind a load balancer

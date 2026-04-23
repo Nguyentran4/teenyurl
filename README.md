@@ -52,6 +52,7 @@ teenyurl/
 - Custom alias support
 - Expiration support
 - Analytics for total clicks, last access time, daily clicks, and privacy-safe request metadata
+- Async analytics updates so redirects are not blocked by stats writes
 - Redis cache for hot URLs
 - Clean layered backend structure
 

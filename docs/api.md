@@ -30,9 +30,14 @@
 ### Behavior
 - Look up short code
 - Redirect to original URL
-- Increment click count
-- Update last access time and daily click rollup
-- Store latest user-agent, referrer, and a salted IP hash when available
+- Publish an analytics event
+- Return without waiting for analytics persistence
+
+Analytics are eventually updated in the background:
+- click count
+- last access time
+- daily click rollup
+- latest user-agent, referrer, and salted IP hash when available
 
 ## Get URL Stats
 **GET** `/api/urls/{shortCode}/stats`
