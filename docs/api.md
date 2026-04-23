@@ -54,7 +54,23 @@ Retry-After: 60
 ```json
 {
   "message": "Rate limit exceeded for create requests",
-  "timestamp": "2026-04-19T12:00:00"
+  "timestamp": "2026-04-19T12:00:00",
+  "status": 429,
+  "error": "Too Many Requests",
+  "path": "/api/urls"
+}
+```
+
+## Error Response
+All API errors use the same JSON shape:
+
+```json
+{
+  "timestamp": "2026-04-19T12:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "originalUrl must use HTTP or HTTPS",
+  "path": "/api/urls"
 }
 ```
 

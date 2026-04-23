@@ -73,7 +73,10 @@ class RateLimitIntegrationTest {
         createUrl(clientIp, "https://example.com/three")
             .andExpect(status().isTooManyRequests())
             .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
-            .andExpect(jsonPath("$.message").value("Rate limit exceeded for create requests"));
+            .andExpect(jsonPath("$.status").value(429))
+            .andExpect(jsonPath("$.error").value("Too Many Requests"))
+            .andExpect(jsonPath("$.message").value("Rate limit exceeded for create requests"))
+            .andExpect(jsonPath("$.path").value("/api/urls"));
     }
 
     @Test
@@ -89,7 +92,10 @@ class RateLimitIntegrationTest {
         mockMvc.perform(get("/" + shortCode).header("X-Forwarded-For", redirectIp))
             .andExpect(status().isTooManyRequests())
             .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
-            .andExpect(jsonPath("$.message").value("Rate limit exceeded for redirect requests"));
+            .andExpect(jsonPath("$.status").value(429))
+            .andExpect(jsonPath("$.error").value("Too Many Requests"))
+            .andExpect(jsonPath("$.message").value("Rate limit exceeded for redirect requests"))
+            .andExpect(jsonPath("$.path").value("/" + shortCode));
     }
 
     private org.springframework.test.web.servlet.ResultActions createUrl(String clientIp, String originalUrl) throws Exception {

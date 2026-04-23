@@ -7,6 +7,7 @@ import com.example.demo.service.ClientIpExtractor;
 import com.example.demo.service.RateLimiter;
 import com.example.demo.service.UrlShortenerService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,7 +36,10 @@ public class UrlController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CreateUrlResponse createShortUrl(@RequestBody CreateUrlRequest request, HttpServletRequest httpRequest) {
+    public CreateUrlResponse createShortUrl(
+        @Valid @RequestBody CreateUrlRequest request,
+        HttpServletRequest httpRequest
+    ) {
         rateLimiter.checkCreateAllowed(clientIpExtractor.extract(httpRequest));
         return urlShortenerService.createShortUrl(request);
     }

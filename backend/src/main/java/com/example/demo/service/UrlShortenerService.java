@@ -11,6 +11,7 @@ import com.example.demo.exception.UrlNotFoundException;
 import com.example.demo.model.UrlMapping;
 import com.example.demo.repository.UrlDailyClickRepository;
 import com.example.demo.repository.UrlMappingRepository;
+import java.net.IDN;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Clock;
@@ -28,6 +29,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class UrlShortenerService {
     private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     private static final Pattern ALIAS_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{3,64}$");
+    private static final Pattern DISALLOWED_URL_CHARACTERS = Pattern.compile(".*[\\p{Cntrl}\\s].*");
 
     private final UrlMappingRepository urlMappingRepository;
     private final UrlDailyClickRepository urlDailyClickRepository;
@@ -185,6 +187,14 @@ public class UrlShortenerService {
         }
 
         String originalUrl = request.originalUrl().trim();
+        if (originalUrl.length() > 2048) {
+            throw new InvalidUrlException("originalUrl must be 2048 characters or fewer");
+        }
+
+        if (DISALLOWED_URL_CHARACTERS.matcher(originalUrl).matches()) {
+            throw new InvalidUrlException("originalUrl must not contain whitespace or control characters");
+        }
+
         try {
             URI uri = new URI(originalUrl);
             String scheme = uri.getScheme();
@@ -196,11 +206,32 @@ public class UrlShortenerService {
             if (!normalizedScheme.equals("http") && !normalizedScheme.equals("https")) {
                 throw new InvalidUrlException("originalUrl must use HTTP or HTTPS");
             }
+
+            validateUrlAuthority(uri);
         } catch (URISyntaxException exception) {
             throw new InvalidUrlException("originalUrl must be a valid URL");
+        } catch (IllegalArgumentException exception) {
+            throw new InvalidUrlException("originalUrl must contain a valid host");
         }
 
         return originalUrl;
+    }
+
+    private void validateUrlAuthority(URI uri) {
+        if (uri.getUserInfo() != null) {
+            throw new InvalidUrlException("originalUrl must not include user info");
+        }
+
+        String host = uri.getHost();
+        String asciiHost = IDN.toASCII(host);
+        if (asciiHost.isBlank() || asciiHost.startsWith(".") || asciiHost.endsWith(".")) {
+            throw new InvalidUrlException("originalUrl must contain a valid host");
+        }
+
+        int port = uri.getPort();
+        if (port < -1 || port == 0 || port > 65535) {
+            throw new InvalidUrlException("originalUrl must contain a valid port");
+        }
     }
 
     private void validateExpiration(LocalDateTime expiresAt, LocalDateTime now) {

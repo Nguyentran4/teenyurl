@@ -129,7 +129,11 @@ class UrlControllerIntegrationTest {
                     }
                     """))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("originalUrl must use HTTP or HTTPS"));
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.error").value("Bad Request"))
+            .andExpect(jsonPath("$.message").value("originalUrl must use HTTP or HTTPS"))
+            .andExpect(jsonPath("$.path").value("/api/urls"))
+            .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
     @Test
@@ -143,7 +147,27 @@ class UrlControllerIntegrationTest {
                     }
                     """))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("alias must be 3-64 characters and contain only letters, numbers, hyphens, or underscores"));
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.error").value("Bad Request"))
+            .andExpect(jsonPath("$.message").value("alias must be 3-64 characters and contain only letters, numbers, hyphens, or underscores"))
+            .andExpect(jsonPath("$.path").value("/api/urls"));
+    }
+
+    @Test
+    void rejectsMissingOriginalUrlWithConsistentErrorBody() throws Exception {
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "alias": "missing_url"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.timestamp").isNotEmpty())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.error").value("Bad Request"))
+            .andExpect(jsonPath("$.message").value("originalUrl is required"))
+            .andExpect(jsonPath("$.path").value("/api/urls"));
     }
 
     @Test
@@ -167,14 +191,20 @@ class UrlControllerIntegrationTest {
                     }
                     """))
             .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.message").value("Alias is already taken: taken"));
+            .andExpect(jsonPath("$.status").value(409))
+            .andExpect(jsonPath("$.error").value("Conflict"))
+            .andExpect(jsonPath("$.message").value("Alias is already taken: taken"))
+            .andExpect(jsonPath("$.path").value("/api/urls"));
     }
 
     @Test
     void returnsNotFoundForMissingShortCode() throws Exception {
         mockMvc.perform(get("/missing-code"))
             .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.message").value("Short URL not found: missing-code"));
+            .andExpect(jsonPath("$.status").value(404))
+            .andExpect(jsonPath("$.error").value("Not Found"))
+            .andExpect(jsonPath("$.message").value("Short URL not found: missing-code"))
+            .andExpect(jsonPath("$.path").value("/missing-code"));
     }
 
     @Test
@@ -223,7 +253,10 @@ class UrlControllerIntegrationTest {
 
         mockMvc.perform(get("/" + shortCode))
             .andExpect(status().isGone())
+            .andExpect(jsonPath("$.status").value(410))
+            .andExpect(jsonPath("$.error").value("Gone"))
             .andExpect(jsonPath("$.message").value("Short URL has expired: " + shortCode))
+            .andExpect(jsonPath("$.path").value("/" + shortCode))
             .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         mockMvc.perform(get("/api/urls/" + shortCode + "/stats"))

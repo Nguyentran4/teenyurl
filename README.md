@@ -54,6 +54,7 @@ teenyurl/
 - Analytics for total clicks, last access time, daily clicks, and privacy-safe request metadata
 - Async analytics updates so redirects are not blocked by stats writes
 - Configurable per-IP rate limiting for URL creation, with optional redirect limiting
+- Consistent JSON error responses with timestamp, status, error, message, and path
 - Redis cache for hot URLs
 - Clean layered backend structure
 
