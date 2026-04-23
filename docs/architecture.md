@@ -18,6 +18,7 @@ TeenyURL is a distributed URL shortener designed to convert long URLs into short
 - Persistence Layer
 - Cache Layer
 - Analytics Layer
+- Rate Limiting Layer
 
 ## Proposed Backend Layers
 - controller: request handling
@@ -55,6 +56,15 @@ Redis stores:
 - TTL based on URL expiration, or a default redirect cache TTL for non-expiring links
 
 PostgreSQL remains the source of truth. A Redis cache hit publishes the same analytics event as a cache miss, so totals, last-access metadata, and daily rollups stay correct without blocking the redirect response.
+
+## Rate Limiting
+`InMemoryRateLimiter` protects public endpoints with configurable fixed windows:
+- URL creation is limited per client IP and enabled by default
+- redirect limiting is available for abuse protection and disabled by default
+- client IP comes from the first `X-Forwarded-For` value when present, otherwise the remote address
+- blocked requests return `429 Too Many Requests` with `Retry-After`
+
+The limiter is behind a small `RateLimiter` interface so a Redis-backed implementation can replace the in-memory counter for multi-instance deployments.
 
 ## Analytics
 Redirects publish a lightweight in-process event. `AnalyticsService` handles that event asynchronously with its own transaction and updates:

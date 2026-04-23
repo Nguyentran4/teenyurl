@@ -3,6 +3,8 @@
 ## Create Short URL
 **POST** `/api/urls`
 
+URL creation is rate-limited per client IP. Defaults are 10 requests per minute.
+
 ### Request body
 ```json
 {
@@ -38,6 +40,23 @@ Analytics are eventually updated in the background:
 - last access time
 - daily click rollup
 - latest user-agent, referrer, and salted IP hash when available
+
+Redirect rate limiting can be enabled separately for abuse protection.
+
+## Rate Limits
+When a client exceeds a configured limit, the API returns:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 60
+```
+
+```json
+{
+  "message": "Rate limit exceeded for create requests",
+  "timestamp": "2026-04-19T12:00:00"
+}
+```
 
 ## Get URL Stats
 **GET** `/api/urls/{shortCode}/stats`

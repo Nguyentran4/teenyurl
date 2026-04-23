@@ -2,6 +2,7 @@ package com.example.demo.exception;
 
 import com.example.demo.dto.ErrorResponse;
 import java.time.LocalDateTime;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +29,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UrlExpiredException.class)
     public ResponseEntity<ErrorResponse> handleExpired(UrlExpiredException exception) {
         return error(HttpStatus.GONE, exception.getMessage());
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimitExceeded(RateLimitExceededException exception) {
+        return ResponseEntity
+            .status(HttpStatus.TOO_MANY_REQUESTS)
+            .header(HttpHeaders.RETRY_AFTER, String.valueOf(exception.getRetryAfter().toSeconds()))
+            .body(new ErrorResponse(exception.getMessage(), LocalDateTime.now()));
     }
 
     private ResponseEntity<ErrorResponse> error(HttpStatus status, String message) {

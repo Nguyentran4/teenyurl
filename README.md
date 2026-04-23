@@ -53,6 +53,7 @@ teenyurl/
 - Expiration support
 - Analytics for total clicks, last access time, daily clicks, and privacy-safe request metadata
 - Async analytics updates so redirects are not blocked by stats writes
+- Configurable per-IP rate limiting for URL creation, with optional redirect limiting
 - Redis cache for hot URLs
 - Clean layered backend structure
 
@@ -109,6 +110,12 @@ spring.data.redis.host=localhost
 spring.data.redis.port=6379
 teenyurl.cache.redirect.default-ttl=PT1H
 teenyurl.analytics.ip-hash-salt=teenyurl-local-dev
+teenyurl.rate-limit.create.enabled=true
+teenyurl.rate-limit.create.limit=10
+teenyurl.rate-limit.create.window=PT1M
+teenyurl.rate-limit.redirect.enabled=false
+teenyurl.rate-limit.redirect.limit=120
+teenyurl.rate-limit.redirect.window=PT1M
 ```
 
 Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
