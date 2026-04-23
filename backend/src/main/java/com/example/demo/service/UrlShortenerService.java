@@ -53,7 +53,11 @@ public class UrlShortenerService {
 
     @Transactional
     public CreateUrlResponse createShortUrl(CreateUrlRequest request) {
-        String originalUrl = validateOriginalUrl(request);
+        if (request == null) {
+            throw new InvalidUrlException("request body is required");
+        }
+
+        String originalUrl = validateOriginalUrl(request.originalUrl());
         LocalDateTime now = LocalDateTime.now(clock);
         validateExpiration(request.expiresAt(), now);
         String alias = validateAlias(request.alias());
@@ -181,12 +185,12 @@ public class UrlShortenerService {
         return mapping;
     }
 
-    private String validateOriginalUrl(CreateUrlRequest request) {
-        if (request == null || request.originalUrl() == null || request.originalUrl().isBlank()) {
+    private String validateOriginalUrl(String originalUrlValue) {
+        if (originalUrlValue == null || originalUrlValue.isBlank()) {
             throw new InvalidUrlException("originalUrl is required");
         }
 
-        String originalUrl = request.originalUrl().trim();
+        String originalUrl = originalUrlValue.trim();
         if (originalUrl.length() > 2048) {
             throw new InvalidUrlException("originalUrl must be 2048 characters or fewer");
         }
@@ -281,5 +285,4 @@ public class UrlShortenerService {
         }
         return encoded.reverse().toString();
     }
-
 }
