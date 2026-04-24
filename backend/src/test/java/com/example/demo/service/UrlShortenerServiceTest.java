@@ -18,6 +18,7 @@ import com.example.demo.repository.UrlMappingRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +67,18 @@ class UrlShortenerServiceTest {
         assertThat(stats.analytics().totalClicks()).isEqualTo(1);
         assertThat(stats.analytics().dailyClicks())
             .containsExactly(new UrlStatsResponse.DailyClick(LocalDate.of(2026, 4, 19), 1));
+    }
+
+    @Test
+    void generatesUniqueCompactCodesWithinSameMillisecond() {
+        CreateUrlResponse first = service.createShortUrl(new CreateUrlRequest("https://example.com/one", null, null));
+        CreateUrlResponse second = service.createShortUrl(new CreateUrlRequest("https://example.com/two", null, null));
+        CreateUrlResponse third = service.createShortUrl(new CreateUrlRequest("https://example.com/three", null, null));
+
+        assertThat(Set.of(first.shortCode(), second.shortCode(), third.shortCode())).hasSize(3);
+        assertThat(first.shortCode().length()).isLessThanOrEqualTo(11);
+        assertThat(second.shortCode().length()).isLessThanOrEqualTo(11);
+        assertThat(third.shortCode().length()).isLessThanOrEqualTo(11);
     }
 
     @Test

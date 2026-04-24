@@ -84,10 +84,16 @@ The current implementation uses Spring async with a bounded single-worker queue 
 - unique ID generation safe across instances
 
 ## Short Code Strategy
-Recommended:
-- generate numeric unique ID
-- encode to Base62
-- use as short code
+Current implementation:
+- generate a Snowflake-style 64-bit ID using timestamp, node id, and per-millisecond sequence
+- configure each app instance with a unique `teenyurl.short-code.snowflake.node-id`
+- encode the numeric ID to Base62 for compact URL-friendly short codes
+
+Tradeoffs:
+- compact output and no database round-trip for code generation
+- safe for horizontal scaling when node ids are configured correctly
+- operationally simpler than Kafka or an external ID service
+- requires unique node-id assignment per instance; misconfiguration can still cause collisions
 
 ## Future Improvements
 - custom aliases

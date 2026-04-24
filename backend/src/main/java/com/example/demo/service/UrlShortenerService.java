@@ -29,7 +29,6 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @Service
 public class UrlShortenerService {
-    private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     private static final Pattern ALIAS_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{3,64}$");
     private static final Pattern DISALLOWED_URL_CHARACTERS = Pattern.compile(".*[\\p{Cntrl}\\s].*");
     private static final Logger LOGGER = LoggerFactory.getLogger(UrlShortenerService.class);
@@ -38,6 +37,7 @@ public class UrlShortenerService {
     private final UrlDailyClickRepository urlDailyClickRepository;
     private final RedirectCacheService redirectCacheService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ShortCodeGenerator shortCodeGenerator;
     private final Clock clock;
 
     public UrlShortenerService(
@@ -45,12 +45,14 @@ public class UrlShortenerService {
         UrlDailyClickRepository urlDailyClickRepository,
         RedirectCacheService redirectCacheService,
         ApplicationEventPublisher eventPublisher,
+        ShortCodeGenerator shortCodeGenerator,
         Clock clock
     ) {
         this.urlMappingRepository = urlMappingRepository;
         this.urlDailyClickRepository = urlDailyClickRepository;
         this.redirectCacheService = redirectCacheService;
         this.eventPublisher = eventPublisher;
+        this.shortCodeGenerator = shortCodeGenerator;
         this.clock = clock;
     }
 
@@ -69,10 +71,8 @@ public class UrlShortenerService {
         String shortCode;
 
         if (alias == null) {
-            mapping = urlMappingRepository.saveAndFlush(mapping);
-            shortCode = encodeBase62(mapping.getId());
-            mapping.setShortCode(shortCode);
-            mapping = saveMapping(mapping, shortCode);
+            mapping = saveGeneratedMapping(mapping);
+            shortCode = mapping.getShortCode();
         } else {
             shortCode = alias;
             ensureAliasAvailable(shortCode);
@@ -102,6 +102,22 @@ public class UrlShortenerService {
             return urlMappingRepository.saveAndFlush(mapping);
         } catch (DataIntegrityViolationException exception) {
             throw new AliasAlreadyExistsException(shortCode);
+        }
+    }
+
+    private UrlMapping saveGeneratedMapping(UrlMapping mapping) {
+        String shortCode = shortCodeGenerator.nextShortCode();
+        mapping.setShortCode(shortCode);
+
+        try {
+            return urlMappingRepository.saveAndFlush(mapping);
+        } catch (DataIntegrityViolationException exception) {
+            LOGGER.error(
+                "Generated short code collision shortCode={} likelyMisconfiguredNodeId=true",
+                shortCode,
+                exception
+            );
+            throw new IllegalStateException("Generated short code collision detected", exception);
         }
     }
 
@@ -286,16 +302,5 @@ public class UrlShortenerService {
         } catch (IllegalStateException exception) {
             return "http://localhost:8080/" + shortCode;
         }
-    }
-
-    private String encodeBase62(Long value) {
-        StringBuilder encoded = new StringBuilder();
-        long remaining = value;
-        while (remaining > 0) {
-            int index = (int) (remaining % BASE62.length());
-            encoded.append(BASE62.charAt(index));
-            remaining = remaining / BASE62.length();
-        }
-        return encoded.reverse().toString();
     }
 }

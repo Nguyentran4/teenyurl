@@ -55,6 +55,7 @@ teenyurl/
 - Async analytics updates so redirects are not blocked by stats writes
 - Configurable per-IP rate limiting for URL creation, with optional redirect limiting
 - Consistent JSON error responses with timestamp, status, error, message, and path
+- Snowflake-style Base62 short code generation for compact, multi-instance-safe IDs
 - Redis cache for hot URLs
 - Clean layered backend structure
 
@@ -117,9 +118,12 @@ teenyurl.rate-limit.create.window=PT1M
 teenyurl.rate-limit.redirect.enabled=false
 teenyurl.rate-limit.redirect.limit=120
 teenyurl.rate-limit.redirect.window=PT1M
+teenyurl.short-code.snowflake.node-id=0
+teenyurl.short-code.snowflake.epoch-millis=1735689600000
 ```
 
 Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
+Set a unique `TEENYURL_SHORT_CODE_NODE_ID` for each application instance in multi-instance deployments.
 
 ### Stop Local Services
 From the repository root:
