@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class UrlShortenerService {
     private static final String BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     private static final Pattern ALIAS_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{3,64}$");
     private static final Pattern DISALLOWED_URL_CHARACTERS = Pattern.compile(".*[\\p{Cntrl}\\s].*");
+    private static final Logger LOGGER = LoggerFactory.getLogger(UrlShortenerService.class);
 
     private final UrlMappingRepository urlMappingRepository;
     private final UrlDailyClickRepository urlDailyClickRepository;
@@ -77,6 +80,14 @@ public class UrlShortenerService {
             mapping = saveMapping(mapping, shortCode);
         }
 
+        LOGGER.info(
+            "Created short URL shortCode={} originalUrl={} customAlias={} expiresAt={}",
+            shortCode,
+            mapping.getOriginalUrl(),
+            alias != null,
+            mapping.getExpiresAt()
+        );
+
         return new CreateUrlResponse(
             shortCode,
             buildShortUrl(shortCode),
@@ -115,6 +126,7 @@ public class UrlShortenerService {
         RedirectRequestMetadata metadata
     ) {
         eventPublisher.publishEvent(new UrlAccessedEvent(shortCode, now, metadata));
+        LOGGER.info("Resolved redirect from cache shortCode={}", shortCode);
         return originalUrl;
     }
 
@@ -122,6 +134,7 @@ public class UrlShortenerService {
         UrlMapping mapping = findActiveMapping(shortCode, now);
         redirectCacheService.cacheRedirect(mapping, now);
         eventPublisher.publishEvent(new UrlAccessedEvent(shortCode, now, metadata));
+        LOGGER.info("Resolved redirect from database shortCode={}", shortCode);
         return mapping.getOriginalUrl();
     }
 
