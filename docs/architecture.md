@@ -51,20 +51,22 @@ Daily analytics table:
 
 ## Cache
 Redis stores:
-- short_code -> original_url
+- `url:{shortCode}` -> original_url
 - redirect mappings for frequently accessed links
 - TTL based on URL expiration, or a default redirect cache TTL for non-expiring links
 
 PostgreSQL remains the source of truth. A Redis cache hit publishes the same analytics event as a cache miss, so totals, last-access metadata, and daily rollups stay correct without blocking the redirect response.
+Write paths evict the corresponding redirect cache key so future mapping updates stay consistent.
 
 ## Rate Limiting
-`InMemoryRateLimiter` protects public endpoints with configurable fixed windows:
+Rate limiting uses configurable fixed windows:
 - URL creation is limited per client IP and enabled by default
 - redirect limiting is available for abuse protection and disabled by default
 - client IP comes from the first `X-Forwarded-For` value when present, otherwise the remote address
 - blocked requests return `429 Too Many Requests` with `Retry-After`
+- Redis-backed counters use `rate_limit:{action}:{clientIp}` keys with TTL matching the configured window
 
-The limiter is behind a small `RateLimiter` interface so a Redis-backed implementation can replace the in-memory counter for multi-instance deployments.
+The limiter is behind a small `RateLimiter` interface. `RedisRateLimiter` is the production default for shared limits across instances, while `InMemoryRateLimiter` remains the fallback when Redis rate limiting is disabled.
 
 ## Analytics
 Redirects publish a lightweight in-process event. `AnalyticsService` handles that event asynchronously with its own transaction and updates:

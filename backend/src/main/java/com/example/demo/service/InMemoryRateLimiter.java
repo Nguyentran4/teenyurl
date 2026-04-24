@@ -7,10 +7,12 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
+@ConditionalOnProperty(name = "teenyurl.rate-limit.redis.enabled", havingValue = "false")
 public class InMemoryRateLimiter implements RateLimiter {
     private final Map<String, WindowCounter> counters = new ConcurrentHashMap<>();
     private final Clock clock;

@@ -23,7 +23,7 @@ public class RedisRedirectCacheService implements RedirectCacheService {
 
     public RedisRedirectCacheService(
         StringRedisTemplate redisTemplate,
-        @Value("${teenyurl.cache.redirect.key-prefix:teenyurl:redirect:}") String keyPrefix,
+        @Value("${teenyurl.cache.redirect.key-prefix:url:}") String keyPrefix,
         @Value("${teenyurl.cache.redirect.default-ttl:PT1H}") Duration defaultTtl
     ) {
         this.redisTemplate = redisTemplate;

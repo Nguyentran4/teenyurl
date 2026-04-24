@@ -99,7 +99,9 @@ public class UrlShortenerService {
 
     private UrlMapping saveMapping(UrlMapping mapping, String shortCode) {
         try {
-            return urlMappingRepository.saveAndFlush(mapping);
+            UrlMapping savedMapping = urlMappingRepository.saveAndFlush(mapping);
+            redirectCacheService.evict(shortCode);
+            return savedMapping;
         } catch (DataIntegrityViolationException exception) {
             throw new AliasAlreadyExistsException(shortCode);
         }
@@ -110,7 +112,9 @@ public class UrlShortenerService {
         mapping.setShortCode(shortCode);
 
         try {
-            return urlMappingRepository.saveAndFlush(mapping);
+            UrlMapping savedMapping = urlMappingRepository.saveAndFlush(mapping);
+            redirectCacheService.evict(shortCode);
+            return savedMapping;
         } catch (DataIntegrityViolationException exception) {
             LOGGER.error(
                 "Generated short code collision shortCode={} likelyMisconfiguredNodeId=true",

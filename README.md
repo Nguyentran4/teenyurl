@@ -110,6 +110,7 @@ Redis uses these defaults:
 ```properties
 spring.data.redis.host=localhost
 spring.data.redis.port=6379
+teenyurl.cache.redirect.key-prefix=url:
 teenyurl.cache.redirect.default-ttl=PT1H
 teenyurl.analytics.ip-hash-salt=teenyurl-local-dev
 teenyurl.rate-limit.create.enabled=true
@@ -118,12 +119,15 @@ teenyurl.rate-limit.create.window=PT1M
 teenyurl.rate-limit.redirect.enabled=false
 teenyurl.rate-limit.redirect.limit=120
 teenyurl.rate-limit.redirect.window=PT1M
+teenyurl.rate-limit.redis.enabled=true
+teenyurl.rate-limit.redis.key-prefix=rate_limit:
 teenyurl.short-code.snowflake.node-id=0
 teenyurl.short-code.snowflake.epoch-millis=1735689600000
 ```
 
 Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
 Set a unique `TEENYURL_SHORT_CODE_NODE_ID` for each application instance in multi-instance deployments.
+Redis key spaces are separated by purpose: redirect cache entries use `url:{shortCode}` and rate limiting uses `rate_limit:{action}:{clientIp}`.
 
 ### Stop Local Services
 From the repository root:
