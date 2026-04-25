@@ -1,4 +1,47 @@
 services:
+  app:
+    build:
+      context: ./backend
+    container_name: teenyurl-app
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-teenyurl}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-teenyurl}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-teenyurl}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      TEENYURL_JPA_DDL_AUTO: ${TEENYURL_JPA_DDL_AUTO:-update}
+      TEENYURL_REDIS_REDIRECT_KEY_PREFIX: ${TEENYURL_REDIS_REDIRECT_KEY_PREFIX:-url:}
+      TEENYURL_REDIS_REDIRECT_TTL: ${TEENYURL_REDIS_REDIRECT_TTL:-PT1H}
+      TEENYURL_ANALYTICS_IP_HASH_SALT: ${TEENYURL_ANALYTICS_IP_HASH_SALT:-teenyurl-local-dev}
+      TEENYURL_RATE_LIMIT_CREATE_ENABLED: ${TEENYURL_RATE_LIMIT_CREATE_ENABLED:-true}
+      TEENYURL_RATE_LIMIT_CREATE_LIMIT: ${TEENYURL_RATE_LIMIT_CREATE_LIMIT:-10}
+      TEENYURL_RATE_LIMIT_CREATE_WINDOW: ${TEENYURL_RATE_LIMIT_CREATE_WINDOW:-PT1M}
+      TEENYURL_RATE_LIMIT_REDIRECT_ENABLED: ${TEENYURL_RATE_LIMIT_REDIRECT_ENABLED:-false}
+      TEENYURL_RATE_LIMIT_REDIRECT_LIMIT: ${TEENYURL_RATE_LIMIT_REDIRECT_LIMIT:-120}
+      TEENYURL_RATE_LIMIT_REDIRECT_WINDOW: ${TEENYURL_RATE_LIMIT_REDIRECT_WINDOW:-PT1M}
+      TEENYURL_RATE_LIMIT_REDIS_ENABLED: ${TEENYURL_RATE_LIMIT_REDIS_ENABLED:-true}
+      TEENYURL_RATE_LIMIT_REDIS_KEY_PREFIX: ${TEENYURL_RATE_LIMIT_REDIS_KEY_PREFIX:-rate_limit:}
+      TEENYURL_REQUEST_LOGGING_ENABLED: ${TEENYURL_REQUEST_LOGGING_ENABLED:-true}
+      TEENYURL_SHORT_CODE_NODE_ID: ${TEENYURL_SHORT_CODE_NODE_ID:-0}
+      TEENYURL_SHORT_CODE_EPOCH_MILLIS: ${TEENYURL_SHORT_CODE_EPOCH_MILLIS:-1735689600000}
+      TEENYURL_CREATE_API_KEY: ${TEENYURL_CREATE_API_KEY:-}
+      TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS: ${TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS:-false}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: teenyurl-postgres
@@ -15,6 +58,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -29,6 +73,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
 volumes:
   teenyurl-postgres-data:

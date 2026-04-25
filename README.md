@@ -32,6 +32,7 @@ teenyurl/
     architecture.md
     api.md
   backend/
+    Dockerfile
 ```
 
 ## Milestones
@@ -68,18 +69,96 @@ teenyurl/
 - `GET /health`
 - `GET /metrics`
 
-## Local Development
-Current MVP:
+## Docker Compose
+The full local stack runs with Docker Compose:
+
+- Spring Boot app on `localhost:8080`
+- PostgreSQL on `localhost:5432`
+- Redis on `localhost:6379`
+
+### Configure Environment
+Create a local `.env` file from the example when you want to override defaults:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Important defaults:
+
+```text
+APP_PORT=8080
+POSTGRES_DB=teenyurl
+POSTGRES_USER=teenyurl
+POSTGRES_PASSWORD=teenyurl
+POSTGRES_PORT=5432
+REDIS_PORT=6379
+TEENYURL_ANALYTICS_IP_HASH_SALT=teenyurl-local-dev
+TEENYURL_SHORT_CODE_NODE_ID=0
+TEENYURL_CREATE_API_KEY=
+```
+
+Inside Docker, the app connects to PostgreSQL at `postgres:5432` and Redis at `redis:6379` using the Compose service names. The database and Redis ports are also published to localhost for debugging.
+
+### Start The Full Stack
+From the repository root:
+
+```powershell
+docker compose up --build
+```
+
+Run it in the background with:
+
+```powershell
+docker compose up --build -d
+```
+
+Check that the app is ready:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/health
+```
+
+Create a short URL:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://localhost:8080/api/urls `
+  -ContentType "application/json" `
+  -Body '{"originalUrl":"https://example.com/articles/123"}'
+```
+
+If `TEENYURL_CREATE_API_KEY` is set, include `X-API-Key` on create requests.
+
+### View Logs
+```powershell
+docker compose logs -f app
+```
+
+### Stop The Stack
+```powershell
+docker compose down
+```
+
+To remove local database and Redis data too:
+
+```powershell
+docker compose down -v
+```
+
+## Local Development Without App Container
+You can also run only PostgreSQL and Redis in Docker while running Spring Boot directly from your IDE:
+
 - Spring Boot app
 - PostgreSQL URL storage
 - Persisted click counts
 - Redis redirect lookup cache
 
-### Start PostgreSQL and Redis
+### Start PostgreSQL And Redis
 From the repository root:
 
 ```powershell
-docker compose up -d
+docker compose up -d postgres redis
 ```
 
 This starts PostgreSQL on `localhost:5432` with:
@@ -188,22 +267,6 @@ Production deployment notes:
 - Keep Redis enabled for shared redirect caching and distributed rate limiting.
 - Use `/health` as the readiness probe and monitor `/metrics` for basic service trends.
 - Restrict public access to `/metrics` at the ingress or network layer if needed.
-
-### Stop Local Services
-From the repository root:
-
-```powershell
-docker compose down
-```
-
-To remove local database data too:
-
-```powershell
-docker compose down -v
-```
-
-Planned local stack:
-- Dockerized backend service
 
 ## Notes
 This project is intended to be resume-friendly and production-inspired, with focus on distributed systems concepts such as:
