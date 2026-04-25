@@ -127,11 +127,36 @@ teenyurl.rate-limit.redis.enabled=true
 teenyurl.rate-limit.redis.key-prefix=rate_limit:
 teenyurl.short-code.snowflake.node-id=0
 teenyurl.short-code.snowflake.epoch-millis=1735689600000
+teenyurl.security.create-api-key=
+teenyurl.security.allow-private-redirect-targets=false
 ```
 
 Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
 Set a unique `TEENYURL_SHORT_CODE_NODE_ID` for each application instance in multi-instance deployments.
 Redis key spaces are separated by purpose: redirect cache entries use `url:{shortCode}` and rate limiting uses `rate_limit:{action}:{clientIp}`.
+
+### Security
+TeenyURL validates and sanitizes redirect targets before storing them:
+
+- Only absolute `http` and `https` URLs are accepted.
+- URL schemes and hosts are normalized before persistence.
+- User info, whitespace, control characters, relative URLs, and protocol-relative URLs are rejected.
+- Localhost and private/local literal IP targets are rejected by default to reduce open redirect and internal-network abuse.
+- Custom aliases are trimmed and restricted to letters, numbers, hyphens, and underscores.
+
+Set `TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS=true` only for trusted internal deployments that need short links to private network targets.
+
+URL creation can be protected with a shared API key:
+
+```powershell
+$env:TEENYURL_CREATE_API_KEY="replace-with-a-long-random-secret"
+```
+
+When configured, clients must include the key on create requests:
+
+```text
+X-API-Key: replace-with-a-long-random-secret
+```
 
 ### Production Readiness
 TeenyURL exposes lightweight operational endpoints without requiring Spring Actuator:

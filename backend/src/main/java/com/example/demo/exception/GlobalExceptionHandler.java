@@ -46,6 +46,15 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.GONE, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorized(
+        UnauthorizedException exception,
+        HttpServletRequest request
+    ) {
+        logHandledException(HttpStatus.UNAUTHORIZED, exception, request);
+        return error(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<ErrorResponse> handleRateLimitExceeded(
         RateLimitExceededException exception,

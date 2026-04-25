@@ -144,6 +144,40 @@ class UrlShortenerServiceTest {
     }
 
     @Test
+    void sanitizesUrlSchemeHostAndAlias() {
+        CreateUrlResponse created = service.createShortUrl(
+            new CreateUrlRequest(" HTTPS://EXAMPLE.COM:443/articles/123?utm=test#section ", " launch_2026 ", null)
+        );
+
+        assertThat(created.shortCode()).isEqualTo("launch_2026");
+        assertThat(created.originalUrl()).isEqualTo("https://example.com:443/articles/123?utm=test#section");
+    }
+
+    @Test
+    void rejectsUnsafeRedirectSchemes() {
+        assertThatThrownBy(() -> service.createShortUrl(
+                new CreateUrlRequest("javascript:alert(1)", null, null)
+            ))
+            .isInstanceOf(InvalidUrlException.class)
+            .hasMessageContaining("absolute HTTP or HTTPS URL");
+    }
+
+    @Test
+    void rejectsLocalRedirectTargetsByDefault() {
+        assertThatThrownBy(() -> service.createShortUrl(
+                new CreateUrlRequest("https://localhost/admin", null, null)
+            ))
+            .isInstanceOf(InvalidUrlException.class)
+            .hasMessageContaining("localhost");
+
+        assertThatThrownBy(() -> service.createShortUrl(
+                new CreateUrlRequest("http://127.0.0.1:8080/admin", null, null)
+            ))
+            .isInstanceOf(InvalidUrlException.class)
+            .hasMessageContaining("private or local network addresses");
+    }
+
+    @Test
     void rejectsPastExpiration() {
         LocalDateTime expiresAt = LocalDateTime.of(2026, 4, 19, 11, 59);
         CreateUrlRequest request = new CreateUrlRequest("https://example.com", null, expiresAt);

@@ -137,6 +137,20 @@ class UrlControllerIntegrationTest {
     }
 
     @Test
+    void rejectsPrivateRedirectTarget() throws Exception {
+        mockMvc.perform(post("/api/urls")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "originalUrl": "http://192.168.1.10/admin"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.status").value(400))
+            .andExpect(jsonPath("$.message").value("originalUrl must not target private or local network addresses"));
+    }
+
+    @Test
     void rejectsInvalidAlias() throws Exception {
         mockMvc.perform(post("/api/urls")
                 .contentType(MediaType.APPLICATION_JSON)

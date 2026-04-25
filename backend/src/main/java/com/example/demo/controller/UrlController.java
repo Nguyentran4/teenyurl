@@ -2,6 +2,7 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.CreateUrlRequest;
 import com.example.demo.dto.CreateUrlResponse;
+import com.example.demo.service.ApiKeyService;
 import com.example.demo.dto.UrlStatsResponse;
 import com.example.demo.service.ClientIpExtractor;
 import com.example.demo.service.RateLimiter;
@@ -23,15 +24,18 @@ public class UrlController {
     private final UrlShortenerService urlShortenerService;
     private final RateLimiter rateLimiter;
     private final ClientIpExtractor clientIpExtractor;
+    private final ApiKeyService apiKeyService;
 
     public UrlController(
         UrlShortenerService urlShortenerService,
         RateLimiter rateLimiter,
-        ClientIpExtractor clientIpExtractor
+        ClientIpExtractor clientIpExtractor,
+        ApiKeyService apiKeyService
     ) {
         this.urlShortenerService = urlShortenerService;
         this.rateLimiter = rateLimiter;
         this.clientIpExtractor = clientIpExtractor;
+        this.apiKeyService = apiKeyService;
     }
 
     @PostMapping
@@ -40,6 +44,7 @@ public class UrlController {
         @Valid @RequestBody CreateUrlRequest request,
         HttpServletRequest httpRequest
     ) {
+        apiKeyService.validateCreateRequest(httpRequest.getHeader(ApiKeyService.API_KEY_HEADER));
         rateLimiter.checkCreateAllowed(clientIpExtractor.extract(httpRequest));
         return urlShortenerService.createShortUrl(request);
     }

@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -31,6 +32,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class UrlShortenerService {
     private static final Pattern ALIAS_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{3,64}$");
     private static final Pattern DISALLOWED_URL_CHARACTERS = Pattern.compile(".*[\\p{Cntrl}\\s].*");
+    private static final Pattern IPV4_ADDRESS = Pattern.compile("^\\d{1,3}(\\.\\d{1,3}){3}$");
     private static final Logger LOGGER = LoggerFactory.getLogger(UrlShortenerService.class);
 
     private final UrlMappingRepository urlMappingRepository;
@@ -39,6 +41,7 @@ public class UrlShortenerService {
     private final ApplicationEventPublisher eventPublisher;
     private final ShortCodeGenerator shortCodeGenerator;
     private final Clock clock;
+    private final boolean allowPrivateRedirectTargets;
 
     public UrlShortenerService(
         UrlMappingRepository urlMappingRepository,
@@ -46,7 +49,8 @@ public class UrlShortenerService {
         RedirectCacheService redirectCacheService,
         ApplicationEventPublisher eventPublisher,
         ShortCodeGenerator shortCodeGenerator,
-        Clock clock
+        Clock clock,
+        @Value("${teenyurl.security.allow-private-redirect-targets:false}") boolean allowPrivateRedirectTargets
     ) {
         this.urlMappingRepository = urlMappingRepository;
         this.urlDailyClickRepository = urlDailyClickRepository;
@@ -54,6 +58,7 @@ public class UrlShortenerService {
         this.eventPublisher = eventPublisher;
         this.shortCodeGenerator = shortCodeGenerator;
         this.clock = clock;
+        this.allowPrivateRedirectTargets = allowPrivateRedirectTargets;
     }
 
     @Transactional
@@ -223,7 +228,7 @@ public class UrlShortenerService {
             throw new InvalidUrlException("originalUrl is required");
         }
 
-        String originalUrl = originalUrlValue.trim();
+        String originalUrl = originalUrlValue.strip();
         if (originalUrl.length() > 2048) {
             throw new InvalidUrlException("originalUrl must be 2048 characters or fewer");
         }
@@ -244,30 +249,127 @@ public class UrlShortenerService {
                 throw new InvalidUrlException("originalUrl must use HTTP or HTTPS");
             }
 
-            validateUrlAuthority(uri);
+            String sanitizedUrl = sanitizeUrl(uri, normalizedScheme);
+            if (sanitizedUrl.length() > 2048) {
+                throw new InvalidUrlException("originalUrl must be 2048 characters or fewer");
+            }
+            return sanitizedUrl;
         } catch (URISyntaxException exception) {
             throw new InvalidUrlException("originalUrl must be a valid URL");
         } catch (IllegalArgumentException exception) {
             throw new InvalidUrlException("originalUrl must contain a valid host");
         }
-
-        return originalUrl;
     }
 
-    private void validateUrlAuthority(URI uri) {
+    private String sanitizeUrl(URI uri, String normalizedScheme) throws URISyntaxException {
         if (uri.getUserInfo() != null) {
             throw new InvalidUrlException("originalUrl must not include user info");
         }
 
         String host = uri.getHost();
-        String asciiHost = IDN.toASCII(host);
+        String asciiHost = normalizeHost(host);
         if (asciiHost.isBlank() || asciiHost.startsWith(".") || asciiHost.endsWith(".")) {
             throw new InvalidUrlException("originalUrl must contain a valid host");
         }
 
+        validateRedirectTargetHost(asciiHost);
+
         int port = uri.getPort();
         if (port < -1 || port == 0 || port > 65535) {
             throw new InvalidUrlException("originalUrl must contain a valid port");
+        }
+
+        return rebuildUrl(uri, normalizedScheme, asciiHost);
+    }
+
+    private String normalizeHost(String host) {
+        String normalizedHost = host.replace("[", "").replace("]", "");
+        if (normalizedHost.contains(":")) {
+            return normalizedHost.toLowerCase(Locale.ROOT);
+        }
+        return IDN.toASCII(normalizedHost).toLowerCase(Locale.ROOT);
+    }
+
+    private void validateRedirectTargetHost(String asciiHost) {
+        if (allowPrivateRedirectTargets) {
+            return;
+        }
+
+        String host = asciiHost.toLowerCase(Locale.ROOT);
+        if (host.equals("localhost") || host.endsWith(".localhost")) {
+            throw new InvalidUrlException("originalUrl must not target localhost");
+        }
+
+        if (isPrivateIpv4Address(host) || isPrivateIpv6Address(host)) {
+            throw new InvalidUrlException("originalUrl must not target private or local network addresses");
+        }
+    }
+
+    private boolean isPrivateIpv4Address(String host) {
+        if (!IPV4_ADDRESS.matcher(host).matches()) {
+            return false;
+        }
+
+        String[] parts = host.split("\\.");
+        int first = parseIpv4Part(parts[0]);
+        int second = parseIpv4Part(parts[1]);
+        int third = parseIpv4Part(parts[2]);
+        int fourth = parseIpv4Part(parts[3]);
+        if (first < 0 || second < 0 || third < 0 || fourth < 0) {
+            throw new InvalidUrlException("originalUrl must contain a valid host");
+        }
+
+        return first == 0
+            || first == 10
+            || first == 127
+            || (first == 100 && second >= 64 && second <= 127)
+            || (first == 169 && second == 254)
+            || (first == 172 && second >= 16 && second <= 31)
+            || (first == 192 && second == 168);
+    }
+
+    private int parseIpv4Part(String value) {
+        int number = Integer.parseInt(value);
+        return number >= 0 && number <= 255 ? number : -1;
+    }
+
+    private boolean isPrivateIpv6Address(String host) {
+        String normalizedHost = host.replace("[", "").replace("]", "").toLowerCase(Locale.ROOT);
+        if (!normalizedHost.contains(":")) {
+            return false;
+        }
+
+        return normalizedHost.equals("::1")
+            || normalizedHost.startsWith("fe80:")
+            || normalizedHost.startsWith("fc")
+            || normalizedHost.startsWith("fd");
+    }
+
+    private String rebuildUrl(URI uri, String scheme, String host) {
+        StringBuilder sanitized = new StringBuilder();
+        sanitized.append(scheme).append("://").append(formatHost(host));
+        if (uri.getPort() != -1) {
+            sanitized.append(":").append(uri.getPort());
+        }
+        appendIfPresent(sanitized, uri.getRawPath());
+        appendPrefixedIfPresent(sanitized, "?", uri.getRawQuery());
+        appendPrefixedIfPresent(sanitized, "#", uri.getRawFragment());
+        return sanitized.toString();
+    }
+
+    private String formatHost(String host) {
+        return host.contains(":") && !host.startsWith("[") ? "[" + host + "]" : host;
+    }
+
+    private void appendIfPresent(StringBuilder builder, String value) {
+        if (value != null) {
+            builder.append(value);
+        }
+    }
+
+    private void appendPrefixedIfPresent(StringBuilder builder, String prefix, String value) {
+        if (value != null) {
+            builder.append(prefix).append(value);
         }
     }
 
