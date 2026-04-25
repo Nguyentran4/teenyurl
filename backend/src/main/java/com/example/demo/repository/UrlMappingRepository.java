@@ -13,6 +13,9 @@ public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
 
     boolean existsByShortCode(String shortCode);
 
+    @Query("select coalesce(sum(mapping.clickCount), 0) from UrlMapping mapping")
+    long sumClickCount();
+
     @Modifying
     @Query("""
         update UrlMapping mapping

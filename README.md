@@ -53,6 +53,8 @@ teenyurl/
 - Expiration support
 - Analytics for total clicks, last access time, daily clicks, and privacy-safe request metadata
 - Async analytics updates so redirects are not blocked by stats writes
+- Health checks for database and Redis readiness
+- Basic service metrics for uptime, URL totals, click totals, and JVM runtime
 - Configurable per-IP rate limiting for URL creation, with optional redirect limiting
 - Consistent JSON error responses with timestamp, status, error, message, and path
 - Snowflake-style Base62 short code generation for compact, multi-instance-safe IDs
@@ -63,6 +65,8 @@ teenyurl/
 - `POST /api/urls`
 - `GET /{shortCode}`
 - `GET /api/urls/{shortCode}/stats`
+- `GET /health`
+- `GET /metrics`
 
 ## Local Development
 Current MVP:
@@ -128,6 +132,37 @@ teenyurl.short-code.snowflake.epoch-millis=1735689600000
 Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
 Set a unique `TEENYURL_SHORT_CODE_NODE_ID` for each application instance in multi-instance deployments.
 Redis key spaces are separated by purpose: redirect cache entries use `url:{shortCode}` and rate limiting uses `rate_limit:{action}:{clientIp}`.
+
+### Production Readiness
+TeenyURL exposes lightweight operational endpoints without requiring Spring Actuator:
+
+```text
+GET /health
+GET /metrics
+```
+
+`/health` validates database connectivity with a simple query and validates Redis with `PING` when Redis-backed features are enabled. It returns HTTP 200 with status `UP` when required dependencies are available, and HTTP 503 with status `DOWN` when a required dependency fails. If Redis-backed caching and Redis-backed rate limiting are disabled, Redis is reported as `DISABLED`.
+
+`/metrics` returns basic process and application counters:
+
+```text
+startedAt
+uptimeSeconds
+urls.totalUrls
+urls.totalClicks
+runtime.availableProcessors
+runtime.usedMemoryBytes
+runtime.maxMemoryBytes
+```
+
+Production deployment notes:
+- Run multiple application instances behind a load balancer.
+- Use the same PostgreSQL database and Redis deployment across all instances.
+- Set a unique `TEENYURL_SHORT_CODE_NODE_ID` per instance to avoid generated ID overlap.
+- Set a strong, deployment-specific `TEENYURL_ANALYTICS_IP_HASH_SALT`.
+- Keep Redis enabled for shared redirect caching and distributed rate limiting.
+- Use `/health` as the readiness probe and monitor `/metrics` for basic service trends.
+- Restrict public access to `/metrics` at the ingress or network layer if needed.
 
 ### Stop Local Services
 From the repository root:
