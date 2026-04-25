@@ -93,11 +93,14 @@ POSTGRES_PASSWORD=teenyurl
 POSTGRES_PORT=5432
 REDIS_PORT=6379
 TEENYURL_ANALYTICS_IP_HASH_SALT=teenyurl-local-dev
+TEENYURL_CACHE_REDIS_ENABLED=true
 TEENYURL_SHORT_CODE_NODE_ID=0
 TEENYURL_CREATE_API_KEY=
 ```
 
 Inside Docker, the app connects to PostgreSQL at `postgres:5432` and Redis at `redis:6379` using the Compose service names. The database and Redis ports are also published to localhost for debugging.
+
+The app listens on container port `8080` locally. In hosted environments such as Render, it uses the platform-provided `PORT` environment variable automatically.
 
 ### Start The Full Stack
 From the repository root:
@@ -267,6 +270,52 @@ Production deployment notes:
 - Keep Redis enabled for shared redirect caching and distributed rate limiting.
 - Use `/health` as the readiness probe and monitor `/metrics` for basic service trends.
 - Restrict public access to `/metrics` at the ingress or network layer if needed.
+
+## Render Deployment
+TeenyURL can deploy to Render as a Docker web service from the backend directory.
+
+### Create Render Services
+1. Create a managed PostgreSQL instance.
+2. Create a managed Redis instance.
+3. Create a new Web Service from this repository.
+4. Choose Docker as the runtime and set the root directory to `backend`.
+
+Do not commit secrets to the repository. Add database, Redis, API key, and salt values only in Render environment variables.
+
+### Render Web Service Settings
+Use these exact service settings:
+
+```text
+Root Directory: backend
+Build Command: leave blank
+Start Command: leave blank
+Health Check Path: /health
+```
+
+Render builds and starts the app from [backend/Dockerfile](backend/Dockerfile). The Docker image starts with `java -jar /app/app.jar`, and Spring Boot reads Render's `PORT` variable through `server.port=${PORT:${SERVER_PORT:8080}}`.
+
+### Render Environment Variables
+Set these on the Render Web Service:
+
+```text
+SPRING_PROFILES_ACTIVE=render
+SPRING_DATASOURCE_URL=jdbc:postgresql://<render-postgres-internal-host>:5432/<database-name>
+SPRING_DATASOURCE_USERNAME=<render-postgres-user>
+SPRING_DATASOURCE_PASSWORD=<render-postgres-password>
+REDIS_URL=<render-redis-internal-url>
+TEENYURL_JPA_DDL_AUTO=update
+TEENYURL_CACHE_REDIS_ENABLED=true
+TEENYURL_RATE_LIMIT_REDIS_ENABLED=true
+TEENYURL_ANALYTICS_IP_HASH_SALT=<long-random-secret>
+TEENYURL_CREATE_API_KEY=<optional-long-random-secret>
+TEENYURL_SHORT_CODE_NODE_ID=0
+TEENYURL_REQUEST_LOGGING_ENABLED=true
+TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS=false
+```
+
+Render provides `PORT` automatically, so do not set it manually. For `SPRING_DATASOURCE_URL`, use a JDBC URL. If Render shows a Postgres URL like `postgresql://user:password@host:5432/db`, convert it to `jdbc:postgresql://host:5432/db` and put the user and password in the separate username and password variables.
+
+If you deploy more than one app instance, set a different `TEENYURL_SHORT_CODE_NODE_ID` for each instance.
 
 ## Notes
 This project is intended to be resume-friendly and production-inspired, with focus on distributed systems concepts such as:
