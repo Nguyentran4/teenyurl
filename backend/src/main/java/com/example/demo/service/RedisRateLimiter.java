@@ -5,16 +5,9 @@ import java.time.Duration;
 import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
 
-@Service
-@ConditionalOnBean(StringRedisTemplate.class)
-@ConditionalOnProperty(name = "teenyurl.rate-limit.redis.enabled", havingValue = "true", matchIfMissing = true)
 public class RedisRateLimiter implements RateLimiter {
     private static final Logger LOGGER = LoggerFactory.getLogger(RedisRateLimiter.class);
 
@@ -29,13 +22,13 @@ public class RedisRateLimiter implements RateLimiter {
 
     public RedisRateLimiter(
         StringRedisTemplate redisTemplate,
-        @Value("${teenyurl.rate-limit.redis.key-prefix:rate_limit:}") String keyPrefix,
-        @Value("${teenyurl.rate-limit.create.enabled:true}") boolean createLimitEnabled,
-        @Value("${teenyurl.rate-limit.create.limit:10}") int createLimit,
-        @Value("${teenyurl.rate-limit.create.window:PT1M}") Duration createWindow,
-        @Value("${teenyurl.rate-limit.redirect.enabled:false}") boolean redirectLimitEnabled,
-        @Value("${teenyurl.rate-limit.redirect.limit:120}") int redirectLimit,
-        @Value("${teenyurl.rate-limit.redirect.window:PT1M}") Duration redirectWindow
+        String keyPrefix,
+        boolean createLimitEnabled,
+        int createLimit,
+        Duration createWindow,
+        boolean redirectLimitEnabled,
+        int redirectLimit,
+        Duration redirectWindow
     ) {
         this.redisTemplate = redisTemplate;
         this.keyPrefix = keyPrefix;
