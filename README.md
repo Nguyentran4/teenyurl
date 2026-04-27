@@ -18,6 +18,9 @@ TeenyURL is a distributed URL shortener built for scalability, reliability, and 
 - Docker Compose
 - Maven
 - JUnit 5
+- React
+- Vite
+- TailwindCSS
 
 ## Project Structure
 ```text
@@ -33,6 +36,10 @@ teenyurl/
     api.md
   backend/
     Dockerfile
+  frontend/
+    src/
+      components/
+      services/
 ```
 
 ## Milestones
@@ -61,6 +68,7 @@ teenyurl/
 - Snowflake-style Base62 short code generation for compact, multi-instance-safe IDs
 - Redis cache for hot URLs
 - Clean layered backend structure
+- Modern React frontend for shortening links and viewing summary stats
 
 ## Example APIs
 - `POST /api/urls`
@@ -96,6 +104,7 @@ TEENYURL_ANALYTICS_IP_HASH_SALT=teenyurl-local-dev
 TEENYURL_CACHE_REDIS_ENABLED=true
 TEENYURL_SHORT_CODE_NODE_ID=0
 TEENYURL_CREATE_API_KEY=
+TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://teenyurl-frontend.example.com
 ```
 
 Inside Docker, the app connects to PostgreSQL at `postgres:5432` and Redis at `redis:6379` using the Compose service names. The database and Redis ports are also published to localhost for debugging.
@@ -211,11 +220,60 @@ teenyurl.short-code.snowflake.node-id=0
 teenyurl.short-code.snowflake.epoch-millis=1735689600000
 teenyurl.security.create-api-key=
 teenyurl.security.allow-private-redirect-targets=false
+teenyurl.cors.allowed-origins=http://localhost:5173,http://localhost:5174,https://teenyurl-frontend.example.com
 ```
 
 Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
 Set a unique `TEENYURL_SHORT_CODE_NODE_ID` for each application instance in multi-instance deployments.
+Set `TEENYURL_CORS_ALLOWED_ORIGINS` to a comma-separated list of trusted frontend origins, such as `http://localhost:5173,http://localhost:5174,https://your-frontend.example.com`.
 Redis key spaces are separated by purpose: redirect cache entries use `url:{shortCode}` and rate limiting uses `rate_limit:{action}:{clientIp}`.
+
+## Frontend
+The React frontend lives in `frontend/` and uses Vite with TailwindCSS.
+
+### Configure Frontend Environment
+Create a local frontend environment file:
+
+```powershell
+Copy-Item frontend/.env.example frontend/.env
+```
+
+The default deployed API target is:
+
+```text
+VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
+```
+
+Keep `VITE_API_BASE_URL` as only the API origin. Do not include `/api/urls` in the environment value because the frontend adds that path when creating links.
+
+For local backend development, set:
+
+```text
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### Run the Frontend
+From `frontend/`:
+
+```powershell
+npm install
+npm run dev
+```
+
+Open the Vite URL shown in the terminal, usually `http://localhost:5173`.
+
+If you change `frontend/.env`, stop and restart the Vite dev server so the new `VITE_API_BASE_URL` value is loaded:
+
+```powershell
+Ctrl+C
+npm run dev
+```
+
+Build for production with:
+
+```powershell
+npm run build
+```
 
 ### Security
 TeenyURL validates and sanitizes redirect targets before storing them:
@@ -311,7 +369,10 @@ TEENYURL_CREATE_API_KEY=<optional-long-random-secret>
 TEENYURL_SHORT_CODE_NODE_ID=0
 TEENYURL_REQUEST_LOGGING_ENABLED=true
 TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS=false
+TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://your-frontend.example.com
 ```
+
+After changing CORS origins on Render, redeploy or restart the web service. Browsers will keep failing preflight requests until the running backend returns `Access-Control-Allow-Origin` for the exact frontend origin.
 
 Render provides `PORT` automatically, so do not set it manually. For `SPRING_DATASOURCE_URL`, use a JDBC URL. If Render shows a Postgres URL like `postgresql://user:password@host:5432/db`, convert it to `jdbc:postgresql://host:5432/db` and put the user and password in the separate username and password variables.
 

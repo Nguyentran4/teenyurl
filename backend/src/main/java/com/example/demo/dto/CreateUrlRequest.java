@@ -1,5 +1,6 @@
 package com.example.demo.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -15,6 +16,7 @@ public record CreateUrlRequest(
         regexp = "^[A-Za-z0-9_-]+$",
         message = "must be 3-64 characters and contain only letters, numbers, hyphens, or underscores"
     )
+    @JsonAlias("customAlias")
     String alias,
 
     LocalDateTime expiresAt

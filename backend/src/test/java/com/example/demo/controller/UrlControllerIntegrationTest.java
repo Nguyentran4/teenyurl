@@ -104,7 +104,7 @@ class UrlControllerIntegrationTest {
                 .content("""
                     {
                       "originalUrl": "https://example.com/custom-alias",
-                      "alias": "launch_2026"
+                      "customAlias": "launch_2026"
                     }
                     """))
             .andExpect(status().isCreated())

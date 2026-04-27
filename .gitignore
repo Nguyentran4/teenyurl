@@ -8,6 +8,12 @@ target/
 
 # Env
 .env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
 
 # OS
 .DS_Store
