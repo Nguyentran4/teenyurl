@@ -275,6 +275,83 @@ Build for production with:
 npm run build
 ```
 
+Preview the production build locally with:
+
+```powershell
+npm run preview
+```
+
+### Deploy Frontend To Vercel
+Vercel is the recommended deployment target for the React frontend.
+
+1. Push the repository to GitHub.
+2. In Vercel, create a new project from the repository.
+3. Set the project root directory to `frontend`.
+4. Use these build settings:
+
+```text
+Framework Preset: Vite
+Install Command: npm install
+Build Command: npm run build
+Output Directory: dist
+```
+
+5. Add this environment variable in Vercel:
+
+```text
+VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
+```
+
+6. Deploy the project. The included `frontend/vercel.json` keeps direct page loads working for the Vite single-page app.
+
+After Vercel gives you a production domain, add it to the backend CORS origins and redeploy or restart the backend:
+
+```text
+TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://your-vercel-domain.vercel.app
+```
+
+### Deploy Frontend To Netlify
+Netlify works as an alternative static hosting target.
+
+1. Push the repository to GitHub.
+2. In Netlify, create a new site from the repository.
+3. Set the base directory to `frontend`.
+4. Use these build settings:
+
+```text
+Build Command: npm run build
+Publish Directory: frontend/dist
+```
+
+If Netlify asks for the publish directory relative to the base directory, use:
+
+```text
+Publish Directory: dist
+```
+
+5. Add this environment variable in Netlify:
+
+```text
+VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
+```
+
+6. Deploy the site. The included `frontend/netlify.toml` handles SPA fallback routing.
+
+After Netlify gives you a production domain, add it to the backend CORS origins and redeploy or restart the backend:
+
+```text
+TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://your-netlify-domain.netlify.app
+```
+
+### Change The Frontend API URL
+For local development, edit `frontend/.env`. For Vercel or Netlify, edit `VITE_API_BASE_URL` in the hosting provider's environment settings and redeploy the frontend.
+
+The value must be only the backend origin:
+
+```text
+VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
+```
+
 ### Security
 TeenyURL validates and sanitizes redirect targets before storing them:
 

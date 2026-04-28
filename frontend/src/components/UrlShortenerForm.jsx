@@ -26,6 +26,7 @@ function UrlShortenerForm({ error, isLoading, onSubmit }) {
     <form
       id="home"
       onSubmit={handleSubmit}
+      aria-busy={isLoading}
       className="animate-fade-up rounded-2xl border border-slate-200 bg-white/92 p-5 shadow-soft backdrop-blur sm:p-7"
     >
       <div className="grid gap-5 lg:grid-cols-[1fr_0.52fr_auto] lg:items-end">

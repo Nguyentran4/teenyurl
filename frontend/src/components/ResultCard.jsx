@@ -3,11 +3,19 @@ import { useState } from 'react';
 
 function ResultCard({ result }) {
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(result.shortUrl);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
+    try {
+      await navigator.clipboard.writeText(result.shortUrl);
+      setCopyError(false);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+      setCopyError(true);
+      window.setTimeout(() => setCopyError(false), 2200);
+    }
   }
 
   function handleOpen() {
@@ -38,15 +46,17 @@ function ResultCard({ result }) {
           <button
             type="button"
             onClick={handleCopy}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-950 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600"
+            disabled={!result.shortUrl}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-950 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
           >
             <Copy className="h-5 w-5" aria-hidden="true" />
-            {copied ? 'Copied' : 'Copy'}
+            {copyError ? 'Failed' : copied ? 'Copied' : 'Copy'}
           </button>
           <button
             type="button"
             onClick={handleOpen}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-950 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600"
+            disabled={!result.shortUrl}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-950 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
           >
             <ExternalLink className="h-5 w-5" aria-hidden="true" />
             Open

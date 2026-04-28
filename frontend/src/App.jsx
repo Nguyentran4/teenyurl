@@ -6,6 +6,19 @@ import ResultCard from './components/ResultCard.jsx';
 import UrlShortenerForm from './components/UrlShortenerForm.jsx';
 import { createShortUrl, getUrlStats } from './services/api.js';
 
+function formatRequestError(error) {
+  const message = error?.message || '';
+
+  if (message.includes('Failed to fetch')) {
+    return message.replace(
+      'Failed to fetch',
+      'Unable to reach the TeenyURL API. Check the backend status and CORS settings',
+    );
+  }
+
+  return message || 'Unable to create a short URL right now.';
+}
+
 function App() {
   const [createdUrl, setCreatedUrl] = useState(null);
   const [stats, setStats] = useState(null);
@@ -35,7 +48,7 @@ function App() {
         setIsStatsLoading(false);
       }
     } catch (requestError) {
-      setError(requestError.message || 'Unable to create a short URL right now.');
+      setError(formatRequestError(requestError));
     } finally {
       setIsLoading(false);
     }
