@@ -1,464 +1,281 @@
 # TeenyURL
 
-TeenyURL is a distributed URL shortener built for scalability, reliability, and fast redirects.
+TeenyURL is a production-inspired URL shortener built to demonstrate clean backend architecture, distributed-system fundamentals, and a recruiter-friendly full-stack workflow.
 
-## Goals
-- Create short URLs from long URLs
-- Redirect users using short codes
-- Track click analytics
-- Support expiration dates
-- Use caching for fast lookups
-- Prepare the system for horizontal scaling
+It supports short-link creation, fast redirects, PostgreSQL persistence, Redis caching, per-IP rate limiting, expiration, and asynchronous analytics.
+
+## Live Demo
+
+- Frontend: `https://teenyurl-gamma.vercel.app/`
+- Backend health: `https://teenyurl-lena.onrender.com/health`
+- API base URL: `https://teenyurl-lena.onrender.com`
+
 
 ## Tech Stack
-- Java 21
-- Spring Boot
-- PostgreSQL
-- Redis
-- Docker Compose
-- Maven
-- JUnit 5
-- React
-- Vite
-- TailwindCSS
 
-## Project Structure
-```text
-teenyurl/
-  README.md
-  AGENTS.md
-  .env.example
-  .gitignore
-  .codex/
-    config.toml
-  docs/
-    architecture.md
-    api.md
-  backend/
-    Dockerfile
-  frontend/
-    src/
-      components/
-      services/
-```
+- Frontend: React, Vite, TailwindCSS
+- Backend: Java 21, Spring Boot, Maven
+- Data: PostgreSQL, Redis
+- Testing: JUnit 5, Spring Boot integration tests, H2 for test isolation
+- Deployment: Docker, Docker Compose, Render-ready backend, Vercel or Netlify-ready frontend
 
-## Milestones
-- [x] Set up Spring Boot backend
-- [x] Create URL shortening API
-- [x] Create redirect endpoint
-- [x] Save URLs in PostgreSQL
-- [x] Add Redis caching
-- [x] Add expiration support
-- [x] Add click analytics
-- [x] Add Docker Compose
-- [x] Add tests
-- [ ] Document architecture
-
-## Core Features
-- Shorten long URLs
-- Redirect by short code
-- Custom alias support
-- Expiration support
-- Analytics for total clicks, last access time, daily clicks, and privacy-safe request metadata
-- Async analytics updates so redirects are not blocked by stats writes
-- Health checks for database and Redis readiness
-- Basic service metrics for uptime, URL totals, click totals, and JVM runtime
-- Configurable per-IP rate limiting for URL creation, with optional redirect limiting
-- Consistent JSON error responses with timestamp, status, error, message, and path
-- Snowflake-style Base62 short code generation for compact, multi-instance-safe IDs
-- Redis cache for hot URLs
-- Clean layered backend structure
-- Modern React frontend for shortening links and viewing summary stats
-
-## Example APIs
-- `POST /api/urls`
-- `GET /{shortCode}`
-- `GET /api/urls/{shortCode}/stats`
-- `GET /health`
-- `GET /metrics`
-
-## Docker Compose
-The full local stack runs with Docker Compose:
-
-- Spring Boot app on `localhost:8080`
-- PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
-
-### Configure Environment
-Create a local `.env` file from the example when you want to override defaults:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-Important defaults:
+## Architecture Overview
 
 ```text
-APP_PORT=8080
-POSTGRES_DB=teenyurl
-POSTGRES_USER=teenyurl
-POSTGRES_PASSWORD=teenyurl
-POSTGRES_PORT=5432
-REDIS_PORT=6379
-TEENYURL_ANALYTICS_IP_HASH_SALT=teenyurl-local-dev
-TEENYURL_CACHE_REDIS_ENABLED=true
-TEENYURL_SHORT_CODE_NODE_ID=0
-TEENYURL_CREATE_API_KEY=
-TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://teenyurl-frontend.example.com
+React + Vite frontend
+        |
+        v
+Spring Boot REST API
+        |
+        +--> PostgreSQL source of truth
+        +--> Redis redirect cache
+        +--> Redis or in-memory rate limiter
+        +--> Async analytics worker
 ```
 
-Inside Docker, the app connects to PostgreSQL at `postgres:5432` and Redis at `redis:6379` using the Compose service names. The database and Redis ports are also published to localhost for debugging.
+Backend packages follow a layered structure:
 
-The app listens on container port `8080` locally. In hosted environments such as Render, it uses the platform-provided `PORT` environment variable automatically.
+- `controller`: REST endpoints and redirects
+- `service`: URL creation, redirect lookup, caching, analytics, rate limiting
+- `repository`: Spring Data persistence
+- `model`: JPA entities
+- `dto`: request and response payloads
+- `config`: application wiring and CORS/logging/rate-limit configuration
+- `exception`: consistent JSON error responses
 
-### Start The Full Stack
-From the repository root:
+## System Design
 
-```powershell
-docker compose up --build
+- React frontend: Vite SPA for creating short links and viewing stats from the REST API.
+- Spring Boot backend: stateless API layer designed to run behind a load balancer.
+- PostgreSQL persistence: durable source of truth for URL mappings and daily click rollups.
+- Redis caching: hot redirect mappings are cached with TTLs to keep redirects fast.
+- Rate limiting: configurable fixed-window limits protect create requests, with Redis-backed limits for multi-instance deployments.
+- Async analytics: redirects publish events and return quickly while click counters and request metadata update in the background.
+- Docker deployment: Compose runs the app, PostgreSQL, and Redis locally; the backend Dockerfile supports hosted container deployment.
+
+## Features
+
+- Create short URLs with generated Base62 codes.
+- Optional custom aliases with validation and collision checks.
+- Redirect by short code with cache-first lookup.
+- Optional expiration dates for links.
+- Privacy-aware analytics with daily clicks, last access time, user agent, referrer, and salted IP hash.
+- Redis-backed redirect caching and distributed rate limiting.
+- Health and metrics endpoints for production readiness.
+- Consistent JSON error responses.
+- Configurable CORS, API key protection, request logging, and private-network redirect protection.
+- React frontend for link creation and summary stats.
+
+## Screenshots
+
+Add current screenshots before publishing:
+
+- `docs/screenshots/home.png`: URL creation form and generated result.
+- `docs/screenshots/stats.png`: analytics or stats view.
+- `docs/screenshots/health.png`: backend health check response.
+
+Suggested README markdown after adding images:
+
+```md
+![TeenyURL home](docs/screenshots/home.png)
+![TeenyURL stats](docs/screenshots/stats.png)
 ```
 
-Run it in the background with:
+## API Endpoints
 
-```powershell
-docker compose up --build -d
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/urls` | Create a short URL. |
+| `GET` | `/{shortCode}` | Redirect to the original URL. |
+| `GET` | `/api/urls/{shortCode}/stats` | Return analytics for a short URL. |
+| `GET` | `/health` | Check database and Redis readiness. |
+| `GET` | `/metrics` | Return lightweight service metrics. |
+
+Create request:
+
+```json
+{
+  "originalUrl": "https://example.com/articles/123",
+  "customAlias": "optional-alias",
+  "expiresAt": "2026-12-31T23:59:59"
+}
 ```
 
-Check that the app is ready:
+Create response:
 
-```powershell
-Invoke-RestMethod http://localhost:8080/health
+```json
+{
+  "shortCode": "abc123",
+  "shortUrl": "http://localhost:8080/abc123",
+  "originalUrl": "https://example.com/articles/123",
+  "expiresAt": "2026-12-31T23:59:59"
+}
 ```
 
-Create a short URL:
-
-```powershell
-Invoke-RestMethod `
-  -Method Post `
-  -Uri http://localhost:8080/api/urls `
-  -ContentType "application/json" `
-  -Body '{"originalUrl":"https://example.com/articles/123"}'
-```
-
-If `TEENYURL_CREATE_API_KEY` is set, include `X-API-Key` on create requests.
-
-### View Logs
-```powershell
-docker compose logs -f app
-```
-
-### Stop The Stack
-```powershell
-docker compose down
-```
-
-To remove local database and Redis data too:
-
-```powershell
-docker compose down -v
-```
-
-## Local Development Without App Container
-You can also run only PostgreSQL and Redis in Docker while running Spring Boot directly from your IDE:
-
-- Spring Boot app
-- PostgreSQL URL storage
-- Persisted click counts
-- Redis redirect lookup cache
-
-### Start PostgreSQL And Redis
-From the repository root:
-
-```powershell
-docker compose up -d postgres redis
-```
-
-This starts PostgreSQL on `localhost:5432` with:
-
-```text
-database: teenyurl
-username: teenyurl
-password: teenyurl
-```
-
-It also starts Redis on `localhost:6379`.
-
-### Run the Backend
-From `backend/`:
-
-```powershell
-.\mvnw.cmd spring-boot:run
-```
-
-The app uses these defaults:
-
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/teenyurl
-spring.datasource.username=teenyurl
-spring.datasource.password=teenyurl
-```
-
-You can override them with `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD`.
-
-Redis uses these defaults:
-
-```properties
-spring.data.redis.host=localhost
-spring.data.redis.port=6379
-teenyurl.cache.redirect.key-prefix=url:
-teenyurl.cache.redirect.default-ttl=PT1H
-teenyurl.analytics.ip-hash-salt=teenyurl-local-dev
-teenyurl.rate-limit.create.enabled=true
-teenyurl.rate-limit.create.limit=10
-teenyurl.rate-limit.create.window=PT1M
-teenyurl.rate-limit.redirect.enabled=false
-teenyurl.rate-limit.redirect.limit=120
-teenyurl.rate-limit.redirect.window=PT1M
-teenyurl.rate-limit.redis.enabled=true
-teenyurl.rate-limit.redis.key-prefix=rate_limit:
-teenyurl.short-code.snowflake.node-id=0
-teenyurl.short-code.snowflake.epoch-millis=1735689600000
-teenyurl.security.create-api-key=
-teenyurl.security.allow-private-redirect-targets=false
-teenyurl.cors.allowed-origins=http://localhost:5173,http://localhost:5174,https://teenyurl-frontend.example.com
-```
-
-Set `TEENYURL_ANALYTICS_IP_HASH_SALT` in non-local environments so stored IP hashes cannot be compared across deployments.
-Set a unique `TEENYURL_SHORT_CODE_NODE_ID` for each application instance in multi-instance deployments.
-Set `TEENYURL_CORS_ALLOWED_ORIGINS` to a comma-separated list of trusted frontend origins, such as `http://localhost:5173,http://localhost:5174,https://your-frontend.example.com`.
-Redis key spaces are separated by purpose: redirect cache entries use `url:{shortCode}` and rate limiting uses `rate_limit:{action}:{clientIp}`.
-
-## Frontend
-The React frontend lives in `frontend/` and uses Vite with TailwindCSS.
-
-### Configure Frontend Environment
-Create a local frontend environment file:
-
-```powershell
-Copy-Item frontend/.env.example frontend/.env
-```
-
-The default deployed API target is:
-
-```text
-VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
-```
-
-Keep `VITE_API_BASE_URL` as only the API origin. Do not include `/api/urls` in the environment value because the frontend adds that path when creating links.
-
-For local backend development, set:
-
-```text
-VITE_API_BASE_URL=http://localhost:8080
-```
-
-### Run the Frontend
-From `frontend/`:
-
-```powershell
-npm install
-npm run dev
-```
-
-Open the Vite URL shown in the terminal, usually `http://localhost:5173`.
-
-If you change `frontend/.env`, stop and restart the Vite dev server so the new `VITE_API_BASE_URL` value is loaded:
-
-```powershell
-Ctrl+C
-npm run dev
-```
-
-Build for production with:
-
-```powershell
-npm run build
-```
-
-Preview the production build locally with:
-
-```powershell
-npm run preview
-```
-
-### Deploy Frontend To Vercel
-Vercel is the recommended deployment target for the React frontend.
-
-1. Push the repository to GitHub.
-2. In Vercel, create a new project from the repository.
-3. Set the project root directory to `frontend`.
-4. Use these build settings:
-
-```text
-Framework Preset: Vite
-Install Command: npm install
-Build Command: npm run build
-Output Directory: dist
-```
-
-5. Add this environment variable in Vercel:
-
-```text
-VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
-```
-
-6. Deploy the project. The included `frontend/vercel.json` keeps direct page loads working for the Vite single-page app.
-
-After Vercel gives you a production domain, add it to the backend CORS origins and redeploy or restart the backend:
-
-```text
-TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://your-vercel-domain.vercel.app
-```
-
-### Deploy Frontend To Netlify
-Netlify works as an alternative static hosting target.
-
-1. Push the repository to GitHub.
-2. In Netlify, create a new site from the repository.
-3. Set the base directory to `frontend`.
-4. Use these build settings:
-
-```text
-Build Command: npm run build
-Publish Directory: frontend/dist
-```
-
-If Netlify asks for the publish directory relative to the base directory, use:
-
-```text
-Publish Directory: dist
-```
-
-5. Add this environment variable in Netlify:
-
-```text
-VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
-```
-
-6. Deploy the site. The included `frontend/netlify.toml` handles SPA fallback routing.
-
-After Netlify gives you a production domain, add it to the backend CORS origins and redeploy or restart the backend:
-
-```text
-TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://your-netlify-domain.netlify.app
-```
-
-### Change The Frontend API URL
-For local development, edit `frontend/.env`. For Vercel or Netlify, edit `VITE_API_BASE_URL` in the hosting provider's environment settings and redeploy the frontend.
-
-The value must be only the backend origin:
-
-```text
-VITE_API_BASE_URL=https://teenyurl-lena.onrender.com
-```
-
-### Security
-TeenyURL validates and sanitizes redirect targets before storing them:
-
-- Only absolute `http` and `https` URLs are accepted.
-- URL schemes and hosts are normalized before persistence.
-- User info, whitespace, control characters, relative URLs, and protocol-relative URLs are rejected.
-- Localhost and private/local literal IP targets are rejected by default to reduce open redirect and internal-network abuse.
-- Custom aliases are trimmed and restricted to letters, numbers, hyphens, and underscores.
-
-Set `TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS=true` only for trusted internal deployments that need short links to private network targets.
-
-URL creation can be protected with a shared API key:
-
-```powershell
-$env:TEENYURL_CREATE_API_KEY="replace-with-a-long-random-secret"
-```
-
-When configured, clients must include the key on create requests:
+If `TEENYURL_CREATE_API_KEY` is set, include it on create requests:
 
 ```text
 X-API-Key: replace-with-a-long-random-secret
 ```
 
-### Production Readiness
-TeenyURL exposes lightweight operational endpoints without requiring Spring Actuator:
+See `docs/api.md` for more response examples.
 
-```text
-GET /health
-GET /metrics
+## Environment Variables
+
+Only commit `.env.example` files. Keep real `.env`, `.env.local`, `.env.production`, and hosting-provider secrets out of Git.
+
+| Variable | Used By | Required | Example | Notes |
+| --- | --- | --- | --- | --- |
+| `APP_PORT` | Docker Compose | No | `8080` | Host port for the backend container. |
+| `POSTGRES_DB` | Docker Compose | No | `teenyurl` | Local database name. |
+| `POSTGRES_USER` | Docker Compose | No | `teenyurl` | Local database user. |
+| `POSTGRES_PASSWORD` | Docker Compose | Yes locally | `change-me-local-only` | Use a real secret outside local development. |
+| `SPRING_DATASOURCE_URL` | Backend | Yes in production | `jdbc:postgresql://host:5432/db` | JDBC URL for PostgreSQL. |
+| `SPRING_DATASOURCE_USERNAME` | Backend | Yes in production | `teenyurl_app` | Database username. |
+| `SPRING_DATASOURCE_PASSWORD` | Backend | Yes in production | `replace-with-db-password` | Store only in environment settings. |
+| `REDIS_URL` | Backend render profile | Yes in production | `redis://host:6379` | Used by hosted Redis providers. |
+| `REDIS_HOST` | Backend local profile | No | `localhost` | Local Redis host when `REDIS_URL` is not used. |
+| `REDIS_PORT` | Backend local profile | No | `6379` | Local Redis port. |
+| `TEENYURL_ANALYTICS_IP_HASH_SALT` | Backend | Yes in production | `replace-with-long-random-salt` | Must be unique per deployment. |
+| `TEENYURL_CREATE_API_KEY` | Backend | No | `replace-with-long-random-secret` | Enables API-key protection for URL creation when set. |
+| `TEENYURL_CORS_ALLOWED_ORIGINS` | Backend | Yes in production | `https://your-frontend.example.com` | Comma-separated trusted frontend origins. |
+| `TEENYURL_SHORT_CODE_NODE_ID` | Backend | Yes for multiple instances | `0` | Use a unique node ID per app instance. |
+| `TEENYURL_CACHE_REDIS_ENABLED` | Backend | No | `true` | Enables Redis redirect caching. |
+| `TEENYURL_RATE_LIMIT_REDIS_ENABLED` | Backend | No | `true` | Enables shared Redis-backed rate limits. |
+| `VITE_API_BASE_URL` | Frontend | Yes | `http://localhost:8080` | Backend origin only, without `/api/urls`. |
+
+## Local Setup
+
+Clone the repository and create local env files:
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item frontend/.env.example frontend/.env
 ```
 
-`/health` validates database connectivity with a simple query and validates Redis with `PING` when Redis-backed features are enabled. It returns HTTP 200 with status `UP` when required dependencies are available, and HTTP 503 with status `DOWN` when a required dependency fails. If Redis-backed caching and Redis-backed rate limiting are disabled, Redis is reported as `DISABLED`.
+Install frontend dependencies:
 
-`/metrics` returns basic process and application counters:
-
-```text
-startedAt
-uptimeSeconds
-urls.totalUrls
-urls.totalClicks
-runtime.availableProcessors
-runtime.usedMemoryBytes
-runtime.maxMemoryBytes
+```powershell
+cd frontend
+npm install
 ```
 
-Production deployment notes:
-- Run multiple application instances behind a load balancer.
-- Use the same PostgreSQL database and Redis deployment across all instances.
-- Set a unique `TEENYURL_SHORT_CODE_NODE_ID` per instance to avoid generated ID overlap.
-- Set a strong, deployment-specific `TEENYURL_ANALYTICS_IP_HASH_SALT`.
-- Keep Redis enabled for shared redirect caching and distributed rate limiting.
-- Use `/health` as the readiness probe and monitor `/metrics` for basic service trends.
-- Restrict public access to `/metrics` at the ingress or network layer if needed.
+Run only PostgreSQL and Redis in Docker:
 
-## Render Deployment
-TeenyURL can deploy to Render as a Docker web service from the backend directory.
-
-### Create Render Services
-1. Create a managed PostgreSQL instance.
-2. Create a managed Redis instance.
-3. Create a new Web Service from this repository.
-4. Choose Docker as the runtime and set the root directory to `backend`.
-
-Do not commit secrets to the repository. Add database, Redis, API key, and salt values only in Render environment variables.
-
-### Render Web Service Settings
-Use these exact service settings:
-
-```text
-Root Directory: backend
-Build Command: leave blank
-Start Command: leave blank
-Health Check Path: /health
+```powershell
+cd ..
+docker compose up -d postgres redis
 ```
 
-Render builds and starts the app from [backend/Dockerfile](backend/Dockerfile). The Docker image starts with `java -jar /app/app.jar`, and Spring Boot reads Render's `PORT` variable through `server.port=${PORT:${SERVER_PORT:8080}}`.
+Run the backend from `backend/`:
 
-### Render Environment Variables
-Set these on the Render Web Service:
-
-```text
-SPRING_PROFILES_ACTIVE=render
-SPRING_DATASOURCE_URL=jdbc:postgresql://<render-postgres-internal-host>:5432/<database-name>
-SPRING_DATASOURCE_USERNAME=<render-postgres-user>
-SPRING_DATASOURCE_PASSWORD=<render-postgres-password>
-REDIS_URL=<render-redis-internal-url>
-TEENYURL_JPA_DDL_AUTO=update
-TEENYURL_CACHE_REDIS_ENABLED=true
-TEENYURL_RATE_LIMIT_REDIS_ENABLED=true
-TEENYURL_ANALYTICS_IP_HASH_SALT=<long-random-secret>
-TEENYURL_CREATE_API_KEY=<optional-long-random-secret>
-TEENYURL_SHORT_CODE_NODE_ID=0
-TEENYURL_REQUEST_LOGGING_ENABLED=true
-TEENYURL_ALLOW_PRIVATE_REDIRECT_TARGETS=false
-TEENYURL_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174,https://your-frontend.example.com
+```powershell
+cd backend
+.\mvnw.cmd spring-boot:run
 ```
 
-After changing CORS origins on Render, redeploy or restart the web service. Browsers will keep failing preflight requests until the running backend returns `Access-Control-Allow-Origin` for the exact frontend origin.
+Run the frontend from `frontend/` in a second terminal:
 
-Render provides `PORT` automatically, so do not set it manually. For `SPRING_DATASOURCE_URL`, use a JDBC URL. If Render shows a Postgres URL like `postgresql://user:password@host:5432/db`, convert it to `jdbc:postgresql://host:5432/db` and put the user and password in the separate username and password variables.
+```powershell
+cd frontend
+npm run dev
+```
 
-If you deploy more than one app instance, set a different `TEENYURL_SHORT_CODE_NODE_ID` for each instance.
+Open the Vite URL, usually `http://localhost:5173`.
 
-## Notes
-This project is intended to be resume-friendly and production-inspired, with focus on distributed systems concepts such as:
-- caching
-- horizontal scaling
-- unique ID generation
-- database consistency
-- rate limiting
+## Docker Compose
+
+Run the full local stack from the repository root:
+
+```powershell
+docker compose up --build
+```
+
+Run in the background:
+
+```powershell
+docker compose up --build -d
+```
+
+Check readiness:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/health
+```
+
+Stop the stack:
+
+```powershell
+docker compose down
+```
+
+Remove local PostgreSQL and Redis volumes too:
+
+```powershell
+docker compose down -v
+```
+
+## Testing
+
+Backend tests:
+
+```powershell
+cd backend
+.\mvnw.cmd test
+```
+
+Frontend production build:
+
+```powershell
+cd frontend
+npm run build
+```
+
+Optional backend compile check:
+
+```powershell
+cd backend
+.\mvnw.cmd compile
+```
+
+## Deployment Notes
+
+Backend:
+
+- Deploy as a Docker web service from `backend/Dockerfile`.
+- Set `SPRING_PROFILES_ACTIVE=render` when using a hosted Redis URL.
+- Store database, Redis, API key, and analytics salt values only in the hosting provider's environment settings.
+- Use `/health` as the readiness check.
+- Use a unique `TEENYURL_SHORT_CODE_NODE_ID` per backend instance.
+
+Frontend:
+
+- Deploy `frontend/` to Vercel or Netlify as a Vite app.
+- Set `VITE_API_BASE_URL` to the deployed backend origin.
+- Add the deployed frontend domain to `TEENYURL_CORS_ALLOWED_ORIGINS` on the backend.
+- Redeploy the frontend after changing `VITE_API_BASE_URL`.
+
+Security:
+
+- Do not commit `.env`, `.env.local`, `.env.production`, database URLs with credentials, Redis URLs with credentials, salts, API keys, or service tokens.
+- Rotate any value that was ever committed publicly.
+- Restrict `/metrics` at the ingress or network layer if exposing operational data is not desired.
+
+## Resume Highlights
+
+- Built a full-stack distributed URL shortener with React, Spring Boot, PostgreSQL, Redis, and Docker.
+- Implemented Base62 short-code generation using a Snowflake-style ID strategy for multi-instance compatibility.
+- Added Redis redirect caching and Redis-backed rate limiting to improve latency and abuse resistance.
+- Designed asynchronous analytics updates so redirects remain fast while PostgreSQL stores aggregate metrics.
+- Added production-readiness endpoints, structured error responses, CORS configuration, and API-key protection.
+- Covered core service behavior and REST endpoints with JUnit and Spring Boot integration tests.
+
+## Future Improvements
+
+- User accounts and authenticated link management.
+- Admin dashboard for analytics and abuse monitoring.
+- QR code generation for short links.
+- Durable event queue for analytics processing.
+- Database migrations with Flyway or Liquibase.
+- CI workflow for backend tests and frontend builds.
+- Public screenshots and deployed demo links.

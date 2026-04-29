@@ -9,11 +9,11 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
+	<artifactId>teenyurl</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
-	<url/>
+	<name>TeenyURL</name>
+	<description>A production-inspired distributed URL shortener built with Spring Boot, PostgreSQL, Redis, and React.</description>
+	<url>https://github.com/your-username/teenyurl</url>
 	<licenses>
 		<license/>
 	</licenses>

@@ -9,7 +9,7 @@ URL creation is rate-limited per client IP. Defaults are 10 requests per minute.
 ```json
 {
   "originalUrl": "https://example.com/very/long/link",
-  "alias": "optional-custom-name",
+  "customAlias": "optional-custom-name",
   "expiresAt": "2026-12-31T23:59:59"
 }
 ```

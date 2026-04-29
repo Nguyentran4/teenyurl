@@ -3,7 +3,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '');
 function buildApiUrl(path) {
   if (!API_BASE_URL) {
     throw new Error(
-      `Missing VITE_API_BASE_URL. Attempted to call: ${path}. Set VITE_API_BASE_URL=https://teenyurl-lena.onrender.com and restart Vite.`,
+      `Missing VITE_API_BASE_URL. Attempted to call: ${path}. Set VITE_API_BASE_URL=http://localhost:8080 and restart Vite.`,
     );
   }
 

@@ -20,7 +20,7 @@ TeenyURL is a distributed URL shortener designed to convert long URLs into short
 - Analytics Layer
 - Rate Limiting Layer
 
-## Proposed Backend Layers
+## Backend Layers
 - controller: request handling
 - service: business logic
 - repository: database access
@@ -97,10 +97,17 @@ Tradeoffs:
 - operationally simpler than Kafka or an external ID service
 - requires unique node-id assignment per instance; misconfiguration can still cause collisions
 
+## Deployment Model
+- React frontend is deployed as static assets on Vercel, Netlify, or another static host
+- Spring Boot backend runs as a stateless container
+- PostgreSQL stores durable URL and analytics data
+- Redis is shared across backend instances for redirect caching and distributed rate limiting
+- Docker Compose provides the local development stack
+
 ## Future Improvements
-- custom aliases
-- QR code generation
-- rate limiting
 - user accounts
 - dashboard analytics
-- Kafka/event queue for async analytics
+- QR code generation
+- Kafka or another durable event queue for async analytics
+- database migrations with Flyway or Liquibase
+- CI workflow for backend tests and frontend builds
