@@ -262,4 +262,3 @@ Security:
 - Durable event queue for analytics processing.
 - Database migrations with Flyway or Liquibase.
 - CI workflow for backend tests and frontend builds.
-- Public screenshots and deployed demo links.
