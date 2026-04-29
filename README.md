@@ -68,14 +68,6 @@ Backend packages follow a layered structure:
 
 ## Screenshots
 
-Add current screenshots before publishing:
-
-- `docs/screenshots/home.png`: URL creation form and generated result.
-- `docs/screenshots/stats.png`: analytics or stats view.
-- `docs/screenshots/health.png`: backend health check response.
-
-Suggested README markdown after adding images:
-
 ```md
 ![TeenyURL home](docs/screenshots/home.png)
 ![TeenyURL stats](docs/screenshots/stats.png)
@@ -261,14 +253,6 @@ Security:
 - Rotate any value that was ever committed publicly.
 - Restrict `/metrics` at the ingress or network layer if exposing operational data is not desired.
 
-## Resume Highlights
-
-- Built a full-stack distributed URL shortener with React, Spring Boot, PostgreSQL, Redis, and Docker.
-- Implemented Base62 short-code generation using a Snowflake-style ID strategy for multi-instance compatibility.
-- Added Redis redirect caching and Redis-backed rate limiting to improve latency and abuse resistance.
-- Designed asynchronous analytics updates so redirects remain fast while PostgreSQL stores aggregate metrics.
-- Added production-readiness endpoints, structured error responses, CORS configuration, and API-key protection.
-- Covered core service behavior and REST endpoints with JUnit and Spring Boot integration tests.
 
 ## Future Improvements
 
