@@ -1,7 +1,39 @@
 import { CalendarDays, Clock3, MousePointer2, TrendingUp } from 'lucide-react';
 
-function formatDateTime(value) {
+const RELATIVE_UNITS = [
+  ['year', 365 * 24 * 60 * 60 * 1000],
+  ['month', 30 * 24 * 60 * 60 * 1000],
+  ['day', 24 * 60 * 60 * 1000],
+  ['hour', 60 * 60 * 1000],
+  ['minute', 60 * 1000],
+];
+
+function parseApiDate(value) {
   if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value !== 'string') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const trimmedValue = value.trim();
+  const hasTimeZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmedValue);
+  const normalizedValue = hasTimeZone ? trimmedValue : `${trimmedValue}Z`;
+  const date = new Date(normalizedValue);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateTime(value) {
+  const date = parseApiDate(value);
+
+  if (!date) {
     return 'Not available';
   }
 
@@ -11,33 +43,42 @@ function formatDateTime(value) {
     year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(new Date(value));
+    timeZoneName: 'short',
+  }).format(date);
 }
 
-function relativeTime(value) {
-  if (!value) {
-    return 'Never';
+function relativeTime(value, { emptyLabel = 'Not available', allowFuture = false } = {}) {
+  const date = parseApiDate(value);
+
+  if (!date) {
+    return emptyLabel;
   }
 
-  const date = new Date(value);
-  const seconds = Math.round((Date.now() - date.getTime()) / 1000);
+  const diffMs = Date.now() - date.getTime();
 
-  if (Math.abs(seconds) < 60) {
+  if (Math.abs(diffMs) < 60 * 1000) {
     return 'just now';
   }
 
-  const minutes = Math.round(seconds / 60);
-  if (Math.abs(minutes) < 60) {
-    return `${minutes} min ago`;
+  if (diffMs < 0 && !allowFuture) {
+    return 'just now';
   }
 
-  const hours = Math.round(minutes / 60);
-  if (Math.abs(hours) < 24) {
-    return `${hours} hr ago`;
+  const relativeFormatter = new Intl.RelativeTimeFormat(undefined, {
+    numeric: 'auto',
+    style: 'short',
+  });
+
+  const absoluteDiffMs = Math.abs(diffMs);
+
+  for (const [unit, unitMs] of RELATIVE_UNITS) {
+    if (absoluteDiffMs >= unitMs) {
+      const amount = Math.round(absoluteDiffMs / unitMs);
+      return relativeFormatter.format(diffMs < 0 ? amount : -amount, unit);
+    }
   }
 
-  const days = Math.round(hours / 24);
-  return `${days} day${Math.abs(days) === 1 ? '' : 's'} ago`;
+  return 'just now';
 }
 
 function Metric({ icon: Icon, label, value, detail, pill }) {
@@ -56,7 +97,7 @@ function Metric({ icon: Icon, label, value, detail, pill }) {
             </span>
           )}
         </div>
-        <p className="mt-2 truncate text-sm text-slate-500">{detail}</p>
+        <p className="mt-2 text-sm leading-snug text-slate-500">{detail}</p>
       </div>
     </div>
   );
@@ -64,6 +105,8 @@ function Metric({ icon: Icon, label, value, detail, pill }) {
 
 function AnalyticsCard({ result, stats, isLoading, statusMessage }) {
   const clickCount = stats?.analytics?.totalClicks ?? stats?.clickCount ?? 0;
+  // Backend responses expose ISO LocalDateTime strings as createdAt, expiresAt,
+  // lastAccessedAt, and analytics.lastAccessedAt.
   const createdAt = stats?.createdAt ?? result?.createdAt;
   const lastAccessedAt = stats?.analytics?.lastAccessedAt ?? stats?.lastAccessedAt;
   const expiresAt = stats?.expiresAt ?? result?.expiresAt;
@@ -90,13 +133,13 @@ function AnalyticsCard({ result, stats, isLoading, statusMessage }) {
         <Metric
           icon={TrendingUp}
           label="Last Accessed"
-          value={lastAccessedAt ? relativeTime(lastAccessedAt) : 'Never'}
+          value={relativeTime(lastAccessedAt, { emptyLabel: 'Never' })}
           detail={formatDateTime(lastAccessedAt)}
         />
         <Metric
           icon={Clock3}
           label="Expires"
-          value={expiresAt ? relativeTime(expiresAt) : 'Never'}
+          value={relativeTime(expiresAt, { emptyLabel: 'Never', allowFuture: true })}
           detail={expiresAt ? formatDateTime(expiresAt) : 'This link never expires'}
         />
       </div>
