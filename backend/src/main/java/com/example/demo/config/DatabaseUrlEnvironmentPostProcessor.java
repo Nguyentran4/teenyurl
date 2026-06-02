@@ -19,11 +19,13 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
-        if (StringUtils.hasText(environment.getProperty(SPRING_DATASOURCE_URL))) {
+        String springDatasourceUrl = environment.getProperty(SPRING_DATASOURCE_URL);
+        if (StringUtils.hasText(springDatasourceUrl) && springDatasourceUrl.startsWith("jdbc:")) {
             return;
         }
 
         String databaseUrl = firstPresent(
+            springDatasourceUrl,
             environment.getProperty("DATABASE_URL"),
             environment.getProperty("TEENYURL_DATABASE_URL")
         );
@@ -48,8 +50,11 @@ public class DatabaseUrlEnvironmentPostProcessor implements EnvironmentPostProce
         environment.getPropertySources().addFirst(new MapPropertySource(PROPERTY_SOURCE_NAME, properties));
     }
 
-    private static String firstPresent(String first, String second) {
-        return StringUtils.hasText(first) ? first : second;
+    private static String firstPresent(String first, String second, String third) {
+        if (StringUtils.hasText(first)) {
+            return first;
+        }
+        return StringUtils.hasText(second) ? second : third;
     }
 
     private static String toJdbcUrl(URI uri) {

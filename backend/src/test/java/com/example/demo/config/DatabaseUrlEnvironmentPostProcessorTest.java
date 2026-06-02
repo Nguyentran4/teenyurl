@@ -38,4 +38,19 @@ class DatabaseUrlEnvironmentPostProcessorTest {
         assertThat(environment.getProperty("spring.datasource.url"))
             .isEqualTo("jdbc:postgresql://localhost:5432/local");
     }
+
+    @Test
+    void convertsSpringDatasourceUrlWhenItUsesRenderPostgresScheme() {
+        StandardEnvironment environment = new StandardEnvironment();
+        environment.getPropertySources().addFirst(new MapPropertySource("test", Map.of(
+            "spring.datasource.url", "postgresql://teenyurl_user:secret-password@dpg-example-a/teenyurl"
+        )));
+
+        postProcessor.postProcessEnvironment(environment, null);
+
+        assertThat(environment.getProperty("spring.datasource.url"))
+            .isEqualTo("jdbc:postgresql://dpg-example-a:5432/teenyurl");
+        assertThat(environment.getProperty("spring.datasource.username")).isEqualTo("teenyurl_user");
+        assertThat(environment.getProperty("spring.datasource.password")).isEqualTo("secret-password");
+    }
 }
