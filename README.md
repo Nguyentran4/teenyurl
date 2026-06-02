@@ -125,6 +125,7 @@ Only commit `.env.example` files. Keep real `.env`, `.env.local`, `.env.producti
 | `SPRING_DATASOURCE_URL` | Backend | Yes in production | `jdbc:postgresql://host:5432/db` | JDBC URL for PostgreSQL. |
 | `SPRING_DATASOURCE_USERNAME` | Backend | Yes in production | `teenyurl_app` | Database username. |
 | `SPRING_DATASOURCE_PASSWORD` | Backend | Yes in production | `replace-with-db-password` | Store only in environment settings. |
+| `DATABASE_URL` | Backend hosted providers | No | `postgresql://user:password@host/db` | Alternative hosted Postgres URL, including Render internal database URLs. The app converts it to JDBC at startup when `SPRING_DATASOURCE_URL` is not set. |
 | `REDIS_URL` | Backend render profile | Yes in production | `redis://host:6379` | Used by hosted Redis providers. |
 | `REDIS_HOST` | Backend local profile | No | `localhost` | Local Redis host when `REDIS_URL` is not used. |
 | `REDIS_PORT` | Backend local profile | No | `6379` | Local Redis port. |
@@ -236,6 +237,7 @@ Backend:
 
 - Deploy as a Docker web service from `backend/Dockerfile`.
 - Set `SPRING_PROFILES_ACTIVE=render` when using a hosted Redis URL.
+- For Render PostgreSQL, set `DATABASE_URL` to the database Internal URL, or set `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, and `SPRING_DATASOURCE_PASSWORD` separately.
 - Store database, Redis, API key, and analytics salt values only in the hosting provider's environment settings.
 - Use `/health` as the readiness check.
 - Use a unique `TEENYURL_SHORT_CODE_NODE_ID` per backend instance.
